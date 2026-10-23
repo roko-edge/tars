@@ -1,50 +1,40 @@
 use core::panic;
+use num_traits::Zero;
+use std::ops::{Add, Mul};
 use std::{sync::Arc, vec};
 
-#[derive(Debug)]
-pub enum DType {
-    F32,
-    I8,
-    T3,
-}
+// pub trait DType: Copy + Default + Add<Output = Self> + Mul<Output = Self> {}
 
 #[derive(Debug, Clone)]
-pub enum Storage {
-    F32(Arc<Vec<f32>>),
-    I8 { data: Arc<Vec<i8>>, scale: f32 },
-    T3 { data: Arc<Vec<u8>>, scale: f32 },
-}
-
-#[derive(Debug, Clone)]
-pub struct Tensor {
-    storage: Storage,
+pub struct Tensor<T> {
+    storage: Arc<Vec<T>>,
     shape: Vec<usize>,
     strides: Vec<usize>,
     offset: usize,
 }
 
-impl Tensor {
-    pub fn new(storage: Storage, shape: Vec<usize>) -> Self {
-        Self::from(storage, shape, 0)
+impl<T> Tensor<T>
+where
+    T: Clone + Default + Zero,
+{
+    pub fn new(data: Vec<T>, shape: Vec<usize>) -> Self {
+        Self::from(data, shape, 0)
     }
 
-    fn from(storage: Storage, shape: Vec<usize>, offset: usize) -> Self {
+    fn from(data: Vec<T>, shape: Vec<usize>, offset: usize) -> Self {
         let strides = Self::contiguous_strides(&shape);
         Self {
-            storage,
+            storage: Arc::new(data),
             shape,
             strides,
             offset,
         }
     }
 
-    pub fn from_vec(data: Vec<f32>, shape: Vec<usize>) -> Self {
-        assert_eq!(data.len(), shape.iter().product(), "");
-        Self::new(Storage::F32(Arc::new(data)), shape)
-    }
-
-    pub fn from_slice(data: &[f32], shape: Vec<usize>) -> Self {
-        Self::from_vec(data.to_vec(), shape)
+    pub fn zeros(shape: Vec<usize>) -> Self {
+        let numel = shape.iter().product();
+        let data = vec![T::zero(); numel];
+        Self::from(data, shape, 0)
     }
 
     fn contiguous_strides(shape: &[usize]) -> Vec<usize> {
@@ -78,7 +68,7 @@ impl Tensor {
         if self.is_contiguous() {
             self.clone()
         } else {
-            let mut tensor = Self::zeros(self.shape.clone(), self.dtype());
+            let mut tensor = Self::zeros(self.shape.clone());
             let mut idx = vec![0usize; self.shape.len()];
 
             for _ in 0..self.numel() {
@@ -95,97 +85,19 @@ impl Tensor {
     pub fn is_contiguous(&self) -> bool {
         self.strides == Self::contiguous_strides(&self.shape)
             && self.offset == 0
-            && match &self.storage {
-                Storage::F32(storage) => storage.len() != 0,
-                Storage::I8 { .. } => panic!(),
-                Storage::T3 { .. } => panic!(),
-            }
+            && self.storage.len() != 0
     }
 
-    pub fn zeros(shape: Vec<usize>, dtype: DType) -> Self {
-        let numel = shape.iter().product();
+    // pub fn dtype(&self) -> DType {
+    //     match &self.storage {
+    //         Storage::F32(_) => DType::F32,
+    //         Storage::I8 { .. } => DType::I8,
+    //         Storage::T3 { .. } => DType::T3,
+    //     }
+    // }
 
-        let storage = match dtype {
-            DType::F32 => Storage::F32(Arc::new(vec![0.0; numel])),
-            DType::I8 => Storage::I8 {
-                data: Arc::new(vec![0i8; numel]),
-                scale: 0.0,
-            },
-            DType::T3 => Storage::T3 {
-                data: Arc::new(vec![0u8; (numel + 3).div_ceil(4)]),
-                scale: 0.0,
-            },
-        };
-
-        Self::from(storage, shape, 0)
-    }
-
-    fn storage_index(&self, indices: &[usize]) -> usize {
-        assert_eq!(
-            indices.len(),
-            self.shape.len(),
-            "indices must match with shape len"
-        );
-        let idx: usize = indices
-            .iter()
-            .zip(self.shape.iter())
-            .zip(self.strides.iter())
-            .map(|((&index, &dim), &stride)| {
-                assert!(index < dim, "tensor index out of bounds!");
-                index * stride
-            })
-            .sum();
-        self.offset + idx
-    }
-
-    pub fn get(&self, index: &[usize]) -> f32 {
-        let idx = self.storage_index(index);
-        match &self.storage {
-            Storage::F32(storage) => storage[idx],
-            Storage::I8 { .. } => panic!(),
-            Storage::T3 { .. } => panic!(),
-        }
-    }
-
-    pub fn set(&mut self, index: &[usize], value: f32) {
-        let idx = self.storage_index(index);
-        let storage = match &mut self.storage {
-            Storage::F32(storage) => Arc::make_mut(storage),
-            Storage::I8 { .. } => panic!(),
-            Storage::T3 { .. } => panic!(),
-        };
-        storage[idx] = value;
-    }
-
-    pub fn shape(&self) -> &[usize] {
-        &self.shape
-    }
-
-    pub fn strides(&self) -> &[usize] {
-        &self.strides
-    }
-
-    pub fn offset(&self) -> usize {
-        self.offset
-    }
-
-    pub fn numel(&self) -> usize {
-        self.shape.iter().product()
-    }
-    pub fn dtype(&self) -> DType {
-        match &self.storage {
-            Storage::F32(_) => DType::F32,
-            Storage::I8 { .. } => DType::I8,
-            Storage::T3 { .. } => DType::T3,
-        }
-    }
-
-    pub fn storage(&self) -> Arc<Vec<f32>> {
-        match &self.storage {
-            Storage::F32(storage) => storage.clone(),
-            Storage::I8 { .. } => panic!(),
-            Storage::T3 { .. } => panic!(),
-        }
+    pub fn storage(&self) -> Arc<Vec<T>> {
+        self.storage.clone()
     }
 
     pub fn transpose_mut(&mut self, dim0: usize, dim1: usize) {
@@ -218,9 +130,86 @@ impl Tensor {
         }
     }
 
+    pub fn map(&self, f: impl Fn(f32) -> f32) -> Self {
+        let mut out = Tensor::zeros(self.shape.clone());
+        let mut idx = vec![0usize; self.shape.len()];
+        for _ in 0..self.numel() {
+            out.set(&idx, f(self.get(&idx)));
+            Self::step_logical(&self.shape, &mut idx);
+        }
+        out
+    }
+
+    pub fn map_mut(&mut self, f: impl Fn(f32) -> f32) {
+        let mut idx = vec![0usize; self.shape.len()];
+        for _ in 0..self.numel() {
+            self.set(&idx, f(self.get(&idx)));
+            Self::step_logical(&self.shape, &mut idx);
+        }
+    }
+
+    pub fn sum(&self) -> T {
+        let mut out = Zero::zero();
+        let mut idx = vec![0usize; self.shape.len()];
+        for _ in 0..self.numel() {
+            out += self.get(&idx);
+            Self::step_logical(&self.shape, &mut idx);
+        }
+        out
+    }
+
+    pub fn outer(&self, other: &Self) -> Self {
+        assert_eq!(self.shape.len(), 1);
+        assert_eq!(other.shape.len(), 1);
+
+        let mut out = Tensor::zeros(vec![self.shape[0], other.shape[0]]);
+        for i in 0..self.numel() {
+            for j in 0..other.numel() {
+                out.set(&[i, j], self.get(&[i]) * other.get(&[j]));
+            }
+        }
+        out
+    }
+
+    pub fn matvec(&self, other: &Self) -> Self {
+        assert_eq!(self.shape.len(), 2);
+        assert_eq!(other.shape.len(), 1);
+        assert_eq!(self.shape[1], other.shape[0]);
+        let mut out = Tensor::zeros(vec![self.shape[0]]);
+        let mut acc;
+        for i in 0..self.shape[0] {
+            acc = 0.0;
+            for j in 0..self.shape[1] {
+                acc += self.get(&[i, j]) * other.get(&[j]);
+            }
+            out.set(&[i], acc);
+        }
+        out
+    }
+
+    pub fn matmul(&self, other: &Self) -> Self {
+        assert_eq!(self.shape.len(), 2);
+        assert_eq!(other.shape.len(), 2);
+        assert_eq!(self.shape[1], other.shape[0]);
+        let mut out = Tensor::zeros(vec![self.shape[0], other.shape[1]]);
+        let mut acc;
+        for k in 0..other.shape[1] {
+            for i in 0..self.shape[0] {
+                acc = 0.0;
+                for j in 0..self.shape[1] {
+                    acc += self.get(&[i, j]) * other.get(&[j, k]);
+                }
+                out.set(&[i, k], acc);
+            }
+        }
+        out
+    }
+}
+
+impl<T: Add + Mul> Tensor<T> {
     pub fn add(&self, other: &Self) -> Self {
         assert_eq!(self.shape, other.shape, "");
-        let mut out = Tensor::zeros(self.shape.clone(), self.dtype());
+        let mut out = Tensor::zeros(self.shape.clone());
         let mut idx = vec![0usize; self.shape.len()];
         for _ in 0..self.numel() {
             out.set(&idx, self.get(&idx) + other.get(&idx));
@@ -240,7 +229,7 @@ impl Tensor {
 
     pub fn sub(&self, other: &Self) -> Self {
         assert_eq!(self.shape, other.shape, "");
-        let mut out = Tensor::zeros(self.shape.clone(), self.dtype());
+        let mut out = Tensor::zeros(self.shape.clone());
         let mut idx = vec![0usize; self.shape.len()];
         for _ in 0..self.numel() {
             out.set(&idx, self.get(&idx) - other.get(&idx));
@@ -260,7 +249,7 @@ impl Tensor {
 
     pub fn mul(&self, other: &Self) -> Self {
         assert_eq!(self.shape, other.shape, "");
-        let mut out = Tensor::zeros(self.shape.clone(), self.dtype());
+        let mut out = Tensor::zeros(self.shape.clone());
         let mut idx = vec![0usize; self.shape.len()];
         for _ in 0..self.numel() {
             out.set(&idx, self.get(&idx) * other.get(&idx));
@@ -280,7 +269,7 @@ impl Tensor {
 
     pub fn div(&self, other: &Self) -> Self {
         assert_eq!(self.shape, other.shape, "");
-        let mut out = Tensor::zeros(self.shape.clone(), self.dtype());
+        let mut out = Tensor::zeros(self.shape.clone());
         let mut idx = vec![0usize; self.shape.len()];
         for _ in 0..self.numel() {
             out.set(&idx, self.get(&idx) / other.get(&idx));
@@ -298,8 +287,8 @@ impl Tensor {
         }
     }
 
-    pub fn mul_scalar(&self, s: f32) -> Self {
-        let mut out = Tensor::zeros(self.shape.clone(), self.dtype());
+    pub fn mul_scalar(&self, s<T>) -> Self {
+        let mut out = Tensor::zeros(self.shape.clone());
         let mut idx = vec![0usize; self.shape.len()];
         for _ in 0..self.numel() {
             out.set(&idx, self.get(&idx) * s);
@@ -318,7 +307,7 @@ impl Tensor {
 
     pub fn div_scalar(&self, s: f32) -> Self {
         assert!(s != 0.0);
-        let mut out = Tensor::zeros(self.shape.clone(), self.dtype());
+        let mut out = Tensor::zeros(self.shape.clone());
         let mut idx = vec![0usize; self.shape.len()];
         for _ in 0..self.numel() {
             out.set(&idx, self.get(&idx) / s);
@@ -334,79 +323,59 @@ impl Tensor {
             Self::step_logical(&self.shape, &mut idx);
         }
     }
+}
 
-    pub fn map(&self, f: impl Fn(f32) -> f32) -> Self {
-        let mut out = Tensor::zeros(self.shape.clone(), self.dtype());
-        let mut idx = vec![0usize; self.shape.len()];
-        for _ in 0..self.numel() {
-            out.set(&idx, f(self.get(&idx)));
-            Self::step_logical(&self.shape, &mut idx);
-        }
-        out
+impl<T: Clone> Tensor<T> {
+    fn storage_index(&self, indices: &[usize]) -> usize {
+        assert_eq!(
+            indices.len(),
+            self.shape.len(),
+            "indices must match with shape len"
+        ); let idx: usize = indices
+            .iter()
+            .zip(self.shape.iter())
+            .zip(self.strides.iter())
+            .map(|((&index, &dim), &stride)| {
+                assert!(index < dim, "tensor index out of bounds!");
+                index * stride
+            })
+            .sum();
+        self.offset + idx
     }
 
-    pub fn map_mut(&mut self, f: impl Fn(f32) -> f32) {
-        let mut idx = vec![0usize; self.shape.len()];
-        for _ in 0..self.numel() {
-            self.set(&idx, f(self.get(&idx)));
-            Self::step_logical(&self.shape, &mut idx);
-        }
+    pub fn from_vec(data: Vec<T>, shape: Vec<usize>) -> Self {
+        assert_eq!(data.len(), shape.iter().product(), "");
+        Self::new(data, shape)
     }
 
-    pub fn sum(&self) -> f32 {
-        let mut out = 0.0;
-        let mut idx = vec![0usize; self.shape.len()];
-        for _ in 0..self.numel() {
-            out += self.get(&idx);
-            Self::step_logical(&self.shape, &mut idx);
-        }
-        out
+    pub fn from_slice(data: &[T], shape: Vec<usize>) -> Self {
+        Self::from_vec(data.to_vec(), shape)
     }
 
-    pub fn outer(&self, other: &Self) -> Self {
-        assert_eq!(self.shape.len(), 1);
-        assert_eq!(other.shape.len(), 1);
-
-        let mut out = Tensor::zeros(vec![self.shape[0], other.shape[0]], self.dtype());
-        for i in 0..self.numel() {
-            for j in 0..other.numel() {
-                out.set(&[i, j], self.get(&[i]) * other.get(&[j]));
-            }
-        }
-        out
+    pub fn get(&self, index: &[usize]) -> T {
+        let idx = self.storage_index(index);
+        self.storage[idx].clone()
     }
 
-    pub fn matvec(&self, other: &Self) -> Self {
-        assert_eq!(self.shape.len(), 2);
-        assert_eq!(other.shape.len(), 1);
-        assert_eq!(self.shape[1], other.shape[0]);
-        let mut out = Tensor::zeros(vec![self.shape[0]], self.dtype());
-        let mut acc;
-        for i in 0..self.shape[0] {
-            acc = 0.0;
-            for j in 0..self.shape[1] {
-                acc += self.get(&[i, j]) * other.get(&[j]);
-            }
-            out.set(&[i], acc);
-        }
-        out
+    pub fn set(&mut self, index: &[usize], value: T) {
+        let idx = self.storage_index(index);
+        let storage = Arc::make_mut(&mut self.storage);
+        storage[idx] = value;
     }
 
-    pub fn matmul(&self, other: &Self) -> Self {
-        assert_eq!(self.shape.len(), 2);
-        assert_eq!(other.shape.len(), 2);
-        assert_eq!(self.shape[1], other.shape[0]);
-        let mut out = Tensor::zeros(vec![self.shape[0], other.shape[1]], self.dtype());
-        let mut acc;
-        for k in 0..other.shape[1] {
-            for i in 0..self.shape[0] {
-                acc = 0.0;
-                for j in 0..self.shape[1] {
-                    acc += self.get(&[i, j]) * other.get(&[j, k]);
-                }
-                out.set(&[i, k], acc);
-            }
-        }
-        out
+    pub fn shape(&self) -> &[usize] {
+        &self.shape
+    }
+
+    pub fn strides(&self) -> &[usize] {
+        &self.strides
+    }
+
+    pub fn offset(&self) -> usize {
+        self.offset
+    }
+
+    pub fn numel(&self) -> usize {
+        self.shape.iter().product()
     }
 }
