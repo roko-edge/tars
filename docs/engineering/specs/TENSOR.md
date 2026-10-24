@@ -100,6 +100,22 @@ beyond v0.1.0 (maintainer decision, October 2026): no implementation exists unti
 it is implemented, which is the reserved-variant rule of the v0.1.0 layer descriptor
 applied to the element axis.
 
+The device-neutral data record of the crate boundary — the exchange format of the
+exporter, the graph renderer, and, in later phases, the device engines — is:
+
+```text
+pub struct TensorData {
+    pub bytes: Vec<u8>,     // raw packed representation of Section 2.3, logical order
+    pub shape: Vec<usize>,
+    pub dtype: DType,
+    pub scale: Option<f32>, // the per-storage scale: W0 for `Trit`; absent for `f32`
+}
+```
+
+The record owns its bytes and shares no storage with any tensor. The wire tag of a
+record is validated against the static element type at the construction boundary
+(Section 4.1).
+
 ### 2.2 Invariants
 1. `shape.len() == strides.len()`.
 2. Total logical elements: $N = \prod_{i=0}^{D-1} \text{shape}[i]$. For scalar tensors ($D=0$), $N=1$.
@@ -188,6 +204,14 @@ The surface is organized per element type: an operation is delivered as a member
 implementation block of its element type, and an operation absent from a block does not
 exist for that type.
 
+**Operation structure (kernel seam).** Every method of this surface is a thin
+dispatcher: it validates the preconditions of Section 4.1 and delegates the arithmetic
+to a kernel function of the per-type kernel module of its element type. A `Tensor`
+method contains no arithmetic of its own, and the `f32` kernel module is the CPU
+reference implementation of the project. This clause operationalizes Invariance Rule 1
+of [`FUTURE_TARGETS.md`](../FUTURE_TARGETS.md): a later device engine replaces kernel
+implementations, never the method signatures.
+
 | Method Category | Method Signature | Operational Behavior | Status |
 |---|---|---|---|
 | **Constructors** | `new(Storage, Vec<usize>) -> Self` | Wraps storage in canonical C-order strided view at offset 0 | Partial |
@@ -212,6 +236,8 @@ exist for that type.
 | | `div_scalar(&self, f32) -> Self` | Pointwise scalar division | Partial |
 | | `map(&self, F) -> Self` | Applies a scalar function to logical elements, where $F$ is any callable over `f32` that may capture state | Partial |
 | | `sum(&self) -> f32` | Full reduction across all logical coordinates | Partial |
+| **Data Transfer** | `into_data(&self) -> TensorData` | Materializes the record of Section 2.1: the logical elements as the raw packed representation of Section 2.3 in logical coordinate order, the shape, the wire tag, and the per-storage scale; the record owns its bytes | Not implemented |
+| | `from_data(TensorData) -> Self` | Constructs a contiguous tensor from the record; the wire tag and the byte length are validated against the static element type and the shape | Not implemented |
 
 #### 4.0.1 Gap Notes
 - `new` does not yet validate the element capacity of the supplied storage against the shape product, as required by Section 2.2, Invariant 5.
@@ -245,6 +271,7 @@ reported as a successful operation.
 | `add`, `sub` | Both operands have identical shapes; broadcasting is not provided in the current phase |
 | `mul_scalar`, `div_scalar`, `map` | The operand is a valid tensor; `div_scalar` requires a non-zero divisor |
 | `sum` | The operand is a valid tensor |
+| `from_data` | The wire tag of the record equals the tag of the static element type; the byte length of the record satisfies the element capacity of Section 2.2, Invariant 5, for the shape |
 
 ### 4.2 Delivery Phases
 The minimum viable surface of this section is delivered incrementally. The phases
@@ -252,7 +279,7 @@ below partition the surface and state the exit condition of each.
 
 | Phase | Scope | Exit Condition |
 |---|---|---|
-| **Current: `f32` core** | Constructors, geometry accessors, element access over `f32`, the axis swap in both variants, `contiguous`, the element-wise kernels (`add`, `sub`, `mul_scalar`, `div_scalar`, `map`), `sum`, the products `matmul`, `matvec`, `outer` over `f32`, and the bulk access surface | Every operation of the phase satisfies Section 4.1 and is covered by the tensor test suite |
+| **Current: `f32` core** | Constructors, geometry accessors, element access over `f32`, the axis swap in both variants, `contiguous`, the element-wise kernels (`add`, `sub`, `mul_scalar`, `div_scalar`, `map`), `sum`, the products `matmul`, `matvec`, `outer` over `f32`, and the data-transfer surface of Section 2.1 (`into_data`, `from_data`) | Every operation of the phase satisfies Section 4.1 and is covered by the tensor test suite |
 | **Subsequent: `Trit` element type** | The `Trit` implementation block: packing and unpacking (Section 3.1), the dequantizing read, the ternary fast path of Section 3.2 (the mixed matmul of activations by ternary weights), and the alignment constraint of Section 2.2, Invariant 7. The `i8` element type and the scaling of Section 3.3 are deferred beyond v0.1.0 (maintainer decision, October 2026) | `Trit` round trips and dequantized values are covered by the tensor test suite |
 | **Deferred** | Reductions along arbitrary axes, `mean`, `slice`, `permute`, `reshape`, and multidimensional broadcasting | Each deferred operation receives its own contract in this specification before implementation |
 

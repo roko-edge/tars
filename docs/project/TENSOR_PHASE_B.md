@@ -65,7 +65,8 @@ The work packages survive the revision in substance; the mapping is recorded bel
 | Item | Status under the revised specification |
 |---|---|
 | WP-01 | Unchanged: the one-byte `Copy`/`PartialEq` wire tag |
-| WP-02, WP-03, WP-05, WP-06, WP-07, WP-08, WP-09, WP-10, WP-12, WP-13 | Unchanged in substance; the acceptance criteria apply to the `f32` implementation block |
+| WP-02, WP-03, WP-05, WP-06, WP-07, WP-08, WP-09, WP-10, WP-13 | Unchanged in substance; the acceptance criteria apply to the `f32` implementation block |
+| WP-12 | Reshaped (October 2026): the public surface is the data round trip of Section 2.1 of the specification (`into_data`/`from_data`); raw buffer views are internal to the crate, per Invariance Rule 2 of [`FUTURE_TARGETS.md`](../engineering/FUTURE_TARGETS.md) |
 | WP-04 | Strengthened: the per-element-type physical addressing rule becomes the associated `Storage` contract of the `Element` trait; defect D-03 is enforced by the type system |
 | WP-11 | Reduced: the unsupported-variant diagnostics (D-02, D-15) are superseded by compile-time absence; the remaining scope is the precondition diagnostics (capacity, indices, zero divisor, alignment) |
 | WP-14 | Reframed as the `Trit` implementation block: packing, the dequantizing read, the mixed matmul, and byte alignment |
@@ -210,13 +211,13 @@ constraint.
 ### WP-12 — Bulk Access for Downstream Consumers
 
 This package belongs to the current phase of Section 4.2 of the specification, which
-places the bulk access surface inside the scope of the `F32` core.
+places the data-transfer surface inside the scope of the `F32` core.
 
 | Field | Content |
 |---|---|
-| Objective | Provide the access surface required by the exporter, the graph renderer, and the later migration of the linear layer |
-| Deliverables | The tensor exposes a read-only view of its storage; a tensor can be constructed from a contiguous element sequence; a tensor can be materialized as a contiguous element sequence; the element sequence is ordered by the logical coordinates of the tensor |
-| Acceptance criteria | The materialized sequence of a non-contiguous tensor lists the elements in logical order; the read-only view shares the buffer rather than copying it; a tensor constructed from an element sequence reports the expected shape and strides; the materialized sequence of a rank-zero tensor contains the single element; the materialized sequence of a tensor whose logical extent is empty is empty |
+| Objective | Provide the access surface required by the exporter, the graph renderer, and the later migration of the linear layer, as the device-neutral data round trip of Section 2.1 of the specification |
+| Deliverables | The public surface is `into_data` and `from_data` over the data record: the logical elements as the raw packed representation in logical order, the shape, the wire tag, and the per-storage scale; the record owns its bytes and shares no storage with any tensor; raw buffer views are internal to the crate and serve the exporter, the graph renderer, and the kernel implementations only |
+| Acceptance criteria | The data round trip of a contiguous tensor preserves the encoded state; `into_data` of a non-contiguous tensor lists the elements in logical order; the record of a rank-zero tensor contains the single element; the record of a tensor whose logical extent is empty is empty; `from_data` rejects a wire tag that does not match the static element type with a non-empty diagnostic; `from_data` rejects a byte length below the element capacity of the shape |
 | Dependencies | WP-03, WP-04, WP-06 |
 | Risk | Low; no consumer exists yet, and the design remains open |
 
@@ -286,7 +287,7 @@ resolves them. The severity follows the impact on the contract of the specificat
 | Reduction | Reduction of a contiguous operand, reduction of a non-contiguous operand, reduction of a rank-zero operand |
 | Products | Each product against a hand-computed reference, each product on non-contiguous operands, inner-dimension mismatch, rank precondition violation |
 | Iteration | Enumeration of all logical positions for rank one, rank two, and rank three, enumeration of a rank-zero shape |
-| Bulk access | Materialized element sequence of a contiguous tensor, of a non-contiguous tensor, of a rank-zero tensor, and of a tensor whose logical extent is empty, construction from an element sequence, read-only view sharing the buffer |
+| Bulk access | Data round trip of a contiguous tensor, of a non-contiguous tensor, of a rank-zero tensor, and of a tensor whose logical extent is empty; `from_data` construction; `from_data` rejection of a mismatched wire tag and of an undersized byte length |
 
 ---
 

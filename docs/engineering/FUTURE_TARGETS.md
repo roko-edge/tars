@@ -4,6 +4,15 @@
 It records the execution targets of later phases and the rules the current phase must
 hold so that those phases do not force rework.
 
+TARS is a TinyML co-design stack. The inference surface is quantization-first and
+embedded-bound — ternary weights, static shapes, microcontroller-class CPUs alongside
+the ternary NPU — and training runs on commodity GPUs through cubecl. The typing
+stance is compile-time-first: element types, operation availability, and
+mixed-precision signatures are static ([`specs/TENSOR.md`](specs/TENSOR.md),
+[`specs/MODEL_TRAIT.md`](specs/MODEL_TRAIT.md)); runtime values appear only where an
+execution boundary requires them — the wire tag at serialization, the device at the
+GPU phase.
+
 ---
 
 ## 1. Target Matrix
@@ -11,7 +20,7 @@ hold so that those phases do not force rework.
 | Target | Phase | Role |
 |---|---|---|
 | NPU inference | v0.1.0 (release) | Bit-exact execution of the ternary model |
-| CPU inference, embedded and microcontroller | v0.2.0+ | Host-side and MCU execution of the quantized model; the first prospective consumer of the reserved `I8` variant |
+| CPU inference, embedded and microcontroller | v0.2.0+ | Host-side and MCU execution of the quantized model through the bit-exact simulator (a pure-Rust, `no_std` with `alloc` runtime); the first prospective consumer of the reserved `I8` variant |
 | GPU training (Vulkan through cubecl, custom ternary kernels) | v0.3.0 (proposed) | Training acceleration and research iteration on commodity GPUs |
 | CPU golden reference | Permanent | The bit-exact simulator never runs on GPU; determinism is the product |
 
@@ -55,12 +64,31 @@ is static per execution phase in this project, and designing a device trait befo
 the cubecl API is in hand risks the wrong abstraction. With the rules of Section 3
 held, a later generalization is mechanical.
 
-Two consequences worth recording now:
+The consequences worth recording now:
 
 - Copy-on-write through `Arc::make_mut` is a CPU-storage concern. GPU storage has
   its own synchronization model and must not inherit the CPU mechanism.
 - Element types remain compile-time. cubecl kernels are typed per element by
   construction, so the typed-tensor design is the native shape of the GPU path.
+- The device enters as a value, not as a generic parameter: the GPU storage of an
+  element type replaces the CPU buffer inside the tensor, and public signatures do
+  not change. This is the erased-client shape of the current cubecl, validated
+  against the cubecl and burn sources in October 2026.
+- The tensor carries no parallel runtime dtype identity: the wire tag derives from
+  the static element type (`Element::DTYPE`) at the points where the GPU stack
+  requires a value. This is a deliberate deviation from runtime-tagged tensor
+  containers, held by the compile-time-first stance.
+- The embedded path never runs cubecl: every cubecl execution runtime is
+  standard-bound and no microcontroller target exists upstream. Microcontroller
+  inference is the bit-exact simulator — a pure-Rust, `no_std` with `alloc`
+  evaluation of the device-independent wire formats — isolated from the GPU phase
+  by the crate split of Invariance Rule 3.
+- The GPU phase is budgeted against one pinned cubecl release (the upstream
+  declares alpha status with breaking changes between minor versions). The kernel
+  library of TARS depends on cubecl with no runtime feature enabled; the executable
+  — or a thin alias crate — enables `vulkan` (the wgpu/SPIR-V pin) and, where
+  required, `cpu`; the crate that owns the GPU engines re-exports cubecl so that
+  custom kernels compile against the same version.
 
 ---
 

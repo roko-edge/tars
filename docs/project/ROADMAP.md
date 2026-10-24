@@ -18,15 +18,19 @@ member requires an explicit reassignment by the lead.
 
 | Owner | Current assignment | Definition of done | Unblocks |
 |---|---|---|---|
-| Gustavo | P0, determinism and fixtures: replace the unseeded global generator with an explicitly seeded PRNG; correct `ternary_distribution_test` (call `ternary_rng`, assert the variance around one with a tolerance, check the ternary support); lock the OR and XOR loss trajectories and canonical weights into `cargo test` | Phase 1 Gate, condition 2; the suite becomes deterministic and green | The regression backbone of the migration phase and every downstream benchmark |
-| Gildo | F32 closure package: WP-01, WP-03, WP-04, WP-05, the WP-07 gaps, WP-10, WP-11, WP-12, WP-13 | The test matrix of [`TENSOR_PHASE_B.md`](TENSOR_PHASE_B.md), Section 5, fully green, including every failure path | The `Linear` migration, the exporter (WP-12 bulk access), and the packed `T3` access (WP-14 depends on WP-04 and WP-11) |
-| Arthur | Typed-element migration and contracts: port `src/math/tensor.rs` to the revised `Tensor<T>` contract of [`TENSOR.md`](../engineering/specs/TENSOR.md) (the `Element` trait, per-type storage, per-type implementation blocks); author the `backward` clause in [`MODEL_TRAIT.md`](../engineering/specs/MODEL_TRAIT.md) and drive its peer sign-off; begin LOG-007 Step 2 (runtime shape registers, the linear weight-stream pointer, the `layer_engine.sv` extraction) | The typed migration lands with the `f32` kernel behavior unchanged and the suite green; the `MODEL_TRAIT` revision merged with sign-off; the Step 2 gate: legacy single-layer results identical and zero width warnings | Gildo's continued closure package on the revised shape, the migration phase, and NPU Steps 3 through 5 |
-| Gustavo (next; blocked by Gildo's closure) | Packed `T3` access, WP-14 T3 scope: the ternary encoding of [`TENSOR.md`](../engineering/specs/TENSOR.md), Section 3.1, dequantization, and byte alignment (Section 2.2, Invariant 7). The `I8` variant is out of scope for v0.1.0. While waiting, the parallel work is the quantizer mathematics ($\Delta$, $W_0$) over latent `F32` weights and the bit-exact simulator specification, which do not depend on the tensor core | The subsequent-phase exit condition of [`TENSOR.md`](../engineering/specs/TENSOR.md), Section 4.2, for the `T3` variant | The quantizer chain, QAT, and the golden-vector path |
+| Gustavo | P0, determinism and fixtures: replace the unseeded global generator with an explicitly seeded PRNG; correct `ternary_distribution_test` (call `ternary_rng`, assert the variance around one with a tolerance, check the ternary support); lock the OR and XOR loss trajectories and canonical weights into `cargo test`. Next assignment of the phase: the typed-element migration, porting `src/math/tensor.rs` to the revised `Tensor<T>` contract of [`TENSOR.md`](../engineering/specs/TENSOR.md) (the `Element` trait, per-type storage, per-type implementation blocks) | Phase 1 Gate, condition 2; the suite becomes deterministic and green; the typed migration lands with the `f32` kernel behavior unchanged and the suite green, with the operation methods as thin dispatchers over the per-type kernel modules (the kernel seam of [`TENSOR.md`](../engineering/specs/TENSOR.md), Section 4) | The regression backbone of the migration phase and every downstream benchmark; Gildo's continued closure package on the revised shape and the migration phase |
+| Gildo | F32 closure package: WP-01, WP-03, WP-04, WP-05, the WP-07 gaps, WP-10, WP-11, WP-12, WP-13; author the `backward` clause draft in [`MODEL_TRAIT.md`](../engineering/specs/MODEL_TRAIT.md) under the Module trait sign-off, drafted against the intermediates recorded by the composite forward (Section 2.2 of the specification), as the parallel assignment while the typed migration is pending | The test matrix of [`TENSOR_PHASE_B.md`](TENSOR_PHASE_B.md), Section 5, fully green, including every failure path; the `MODEL_TRAIT` revision merged with sign-off | The `Linear` migration, the exporter (WP-12 bulk access), and the packed `T3` access (WP-14 depends on WP-04 and WP-11) |
+| Arthur | NPU execution and hardware contracts: begin LOG-007 Step 2 (runtime shape registers, the linear weight-stream pointer, the `layer_engine.sv` extraction); author the layer-manifest format contract (LOG-007, Section 4.2, Step 1) and retain its sign-off; retain the Module trait sign-off of the `MODEL_TRAIT` `backward` clause; adjust the module forwards and the composite evaluation to record the intermediates that `backward` requires ([`MODEL_TRAIT.md`](../engineering/specs/MODEL_TRAIT.md), Section 2.2) | The Step 2 gate: legacy single-layer results identical and zero width warnings; the manifest contract recorded with sign-off; the training step evaluates the forward chain once and `backward` consumes the recorded trace | NPU Steps 3 through 5 and the Phase 3 exporter implementation |
+| Gustavo (subsequent; blocked by Gildo's closure) | Packed `T3` access, WP-14 T3 scope: the ternary encoding of [`TENSOR.md`](../engineering/specs/TENSOR.md), Section 3.1, dequantization, and byte alignment (Section 2.2, Invariant 7). The `I8` variant is out of scope for v0.1.0. While waiting, the parallel work is the quantizer mathematics ($\Delta$, $W_0$) over latent `F32` weights and the bit-exact simulator specification, which do not depend on the tensor core | The subsequent-phase exit condition of [`TENSOR.md`](../engineering/specs/TENSOR.md), Section 4.2, for the `T3` variant | The quantizer chain, QAT, and the golden-vector path |
 
 ---
 
 ## 1. System Vision and Boundaries
 
+TARS is a TinyML co-design stack: quantization-first models with ternary weights,
+inference on microcontroller-class CPUs and the ternary NPU, and training on
+commodity GPUs. Capabilities that can be resolved at compile time — element types,
+operation availability, and mixed-precision signatures — are resolved statically.
 TARS unifies an experimental deep learning engine written in Rust with a synthesizable
 hardware neural processing unit (NPU) specified in SystemVerilog.
 
@@ -152,7 +156,7 @@ conditions are met and peer reviews are recorded.
   - [ ] Implement cache-friendly row-major matrix multiplication (`matmul`) with dimension assertions.
   - [ ] Review Arthur's NPU microarchitecture updates: audit FSM transitions, 64-bit saturating accumulator arithmetic, and signed ReLU activation logic.
 - **Arthur:**
-  - [ ] Refactor `Sequential` to implement the new `Module` trait.
+  - [ ] Refactor `Sequential` to implement the new `Module` trait: `ReLU` and `Sigmoid` become distinct `Module` structs, no activation enumeration remains in the public surface, and the consuming builder (`new`, `linear`, `relu`, `sigmoid`, with running-dimension tracking and the seeded initializer) is preserved ([`MODEL_TRAIT.md`](../engineering/specs/MODEL_TRAIT.md), Section 2.2).
   - [ ] Introduce `Model<M>` container owning parameter lifetime management. Deferred until a non-sequential topology exists (maintainer decision, October 2026); parameter tracking is served by the `Module` parameter surfaces in the interim.
   - [x] Upgrade NPU microarchitecture: expand the accumulator to 64 bits with final saturation logic (signed ReLU activation unit remains pending).
   - [ ] Maintain hardware testbench in `npu/tests/tb.sv` and supply raw cycle count metrics to Gustavo.
@@ -165,7 +169,7 @@ conditions are met and peer reviews are recorded.
 
 - **Gildo (Lead) & Arthur (Pair):**
   - [ ] Migrate `Linear` layer to store weights and biases as contiguous `Tensor` instances.
-  - [ ] Re-engineer `backward()`: perform full backward pass using batched matrix multiplications, eliminating `Vec<Vec<f32>>` allocations.
+  - [ ] Re-engineer `backward()`: perform full backward pass using batched matrix multiplications, eliminating `Vec<Vec<f32>>` allocations; the pass consumes the intermediates recorded by the composite forward ([`MODEL_TRAIT.md`](../engineering/specs/MODEL_TRAIT.md), Section 2.2) and does not re-evaluate the forward chain.
   - [ ] Eliminate redundant model cloning in gradient structures (`Grad`).
   - [ ] Deliver the reductions along arbitrary axes and the `mean` reduction, each of which requires a contract clause in `docs/engineering/specs/TENSOR.md` before implementation; the full reduction `sum` is delivered in Phase 1.
   - [ ] Review NPU multi-cycle Layer Engine FSM implementation.
@@ -180,7 +184,7 @@ conditions are met and peer reviews are recorded.
 - **Arthur:**
   - [x] Design multi-cycle Layer Engine FSM in `npu/src/npu.sv` for sequential computation of $M$ output neurons from $N$ inputs (multi-layer chaining and activation units remain pending).
   - [ ] Implement the ternary multiply-accumulate execution mode of the release engine: 2-bit dense weights, conditional accumulation, and the per-layer $W_0$ epilogue. The Q8.24 MAC remains as the development substrate and the synthesis baseline (maintainer decision, October 2026).
-  - [ ] Author the layer-manifest format contract (four-word descriptor, mode semantics, `program.mem`/`wt.mem`/`w0.mem` layout, per LOG-007 Section 4.2 Step 1) and retain its sign-off; the exporter implementation is delegated to Gildo.
+  - [ ] Author the layer-manifest format contract (four-word descriptor, mode semantics, `program.mem`/`wt.mem`/`w0.mem` layout, per LOG-007 Section 4.2 Step 1) and retain its sign-off; the contract names the consumers of the format — the NPU testbench, the bit-exact simulator, and the embedded inference runtime load the same artifacts. The exporter implementation is delegated to Gildo.
   - [ ] Maintain hardware simulation suite and deliver cycle timing data to Gustavo.
 
 **Phase 3 Gate:** Training loop converges on XOR using pure `Tensor` backend. Numerical gradient check passes ($\epsilon \le 10^{-4}$). Ternary mixed-precision operations pass verification against golden software vectors. NPU Layer Engine FSM passes simulation and Gildo's RTL review.
