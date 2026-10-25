@@ -141,12 +141,5 @@ A human maintainer can extend the same pattern:
 4. Select the factory in `src/bin/main.rs`, rebuild, and run the executable.
 5. Document the topology, dataset, and hyperparameters alongside this page.
 
-[`local.rs.template`](../src/experiments/local.rs.template) is an incomplete
-starting point: it omits the required `experiment_type` field and uses `use tars::*`
-rather than the `crate` imports used by the built-in library modules. It is not
-declared in `src/experiments.rs`, loaded automatically, or a ready-to-compile
-experiment. Its imports and fields need to be adapted to the intended module location
-by the maintainer.
-
 For the broader module structure, see
 [`engineering/ARCHITECTURE.md`](engineering/ARCHITECTURE.md).

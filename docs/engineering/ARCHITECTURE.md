@@ -21,7 +21,6 @@ src/
     experiment_type.rs    OR/XOR identifiers
     or.rs                 OR configuration factory
     xor.rs                XOR configuration factory
-    local.rs.template     Incomplete local-experiment starting point
   data.rs                 Training samples
   math.rs                 Scalar activations and random initialization
   math/tensor.rs          Tensor core: storage dispatch, views, kernels, products

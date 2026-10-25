@@ -16,6 +16,7 @@ not establish that a planned capability is available.
 | Review board integration and synthesis architecture | [`BOARD_INTEGRATION.md`](BOARD_INTEGRATION.md) | Board integration architecture and local lab specification |
 | Evaluate the observability design | [`OBSERVABILITY_PROPOSAL.md`](OBSERVABILITY_PROPOSAL.md) | Proposal, not implemented |
 | Review future execution targets and invariance rules | [`FUTURE_TARGETS.md`](FUTURE_TARGETS.md) | Target architecture record for the GPU and embedded phases |
+| Review the NPU specialization and generator model | [`NPU_SPECIALIZATION_PROPOSAL.md`](NPU_SPECIALIZATION_PROPOSAL.md) | Proposal, not implemented; v0.1.0 obligations bind the engine steps |
 | Review normative and target contracts | [`specs/README.md`](specs/README.md) | Mixed current and target contracts with explicit status |
 
 ---
@@ -26,7 +27,7 @@ not establish that a planned capability is available.
 |---|---|
 | Rust model architecture | [`ARCHITECTURE.md`](ARCHITECTURE.md), [`specs/MODEL_TRAIT.md`](specs/MODEL_TRAIT.md) |
 | Tensor engine | [`specs/TENSOR.md`](specs/TENSOR.md) |
-| NPU arithmetic and integration | [`MEM_FORMAT.md`](MEM_FORMAT.md), [`specs/ARITHMETIC_Q8_24.md`](specs/ARITHMETIC_Q8_24.md), [`BOARD_INTEGRATION.md`](BOARD_INTEGRATION.md) |
+| NPU arithmetic and integration | [`MEM_FORMAT.md`](MEM_FORMAT.md), [`specs/ARITHMETIC_Q8_24.md`](specs/ARITHMETIC_Q8_24.md), [`BOARD_INTEGRATION.md`](BOARD_INTEGRATION.md), [`NPU_SPECIALIZATION_PROPOSAL.md`](NPU_SPECIALIZATION_PROPOSAL.md) |
 | Visualization and telemetry | [`OBSERVABILITY_PROPOSAL.md`](OBSERVABILITY_PROPOSAL.md) |
 
 Current project progress and scheduling belong in

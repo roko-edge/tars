@@ -99,4 +99,4 @@ The consequences worth recording now:
 | v0.1.0 | Unchanged: MNIST ternary release, bit-exact parity, tag gate |
 | v0.2.0 | Unchanged: zero-skipping; `I8` may enter with the embedded-inference consumer |
 | v0.3.0 (proposed) | GPU training via cubecl with custom ternary kernels; device dimension admitted as a compile-time, feature-gated axis |
-| v1.0+ | Unchanged: architectural expansion (CNNs, CfC, Neural ODEs, DAG, autodiff) |
+| v1.0+ | Unchanged: architectural expansion (CNNs, CfC, Neural ODEs, DAG, autodiff); per-network NPU assembly per [`NPU_SPECIALIZATION_PROPOSAL.md`](NPU_SPECIALIZATION_PROPOSAL.md) |
