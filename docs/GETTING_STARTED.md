@@ -17,10 +17,9 @@ nix develop .#hardware
 
 The default shell contains the Rust and hardware toolchains. The Rust shell includes
 Graphviz and the visualization dependencies. The hardware shell includes GNU Make,
-Icarus Verilog, Verilator, GTKWave, and Verible. The Verilator binary build invoked by
-`npu/Makefile` requires a Python 3 interpreter, which the hardware shell does not
-currently provide; the `make sim` target fails with `python3: command not found` until
-one is present on the path.
+Verilator, GTKWave, Verible, the Python 3 interpreter required by the Verilator
+binary build invoked by `npu/Makefile`, and Icarus Verilog, an alternative simulator
+not used by the current Makefile flow.
 
 Without Nix, provide a Rust 2024 toolchain and the corresponding system tools manually.
 

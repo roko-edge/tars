@@ -59,7 +59,7 @@ Section 4.
 
 #### Contract Expectations
 - `forward`: Accepts an input tensor (contiguous or strided; the element type is verified statically) and evaluates the transformation, returning the resulting tensor without mutating internal layer state. The intermediates required by the backward pass are recorded by the composite evaluation (Section 2.2), never through mutation of the submodule.
-- `parameters`: Collects immutable references to all parameter tensors owned by the module (e.g., weights and biases, which may carry continuous `F32` or quantized `Ternary` `DType` variants).
+- `parameters`: Collects immutable references to all parameter tensors owned by the module (e.g., weights and biases, which may carry continuous `F32` or quantized `T3` `DType` variants).
 - `parameters_mut`: Collects mutable references to all parameter tensors in identical order, enabling in-place parameter updates during optimization.
 
 ---

@@ -11,8 +11,9 @@
 
       hardwareTools = with pkgs; [
         gnumake # npu/Makefile
-        iverilog # simulador IEEE 1800-2012 (inclui vvp)
-        verilator # lint estático
+        python3 # driver de build do Verilator (--binary), exigido pelo fluxo de simulação
+        verilator # simulação (--binary --timing --trace) e lint estático do fluxo npu/Makefile
+        iverilog # simulador IEEE 1800-2012 alternativo; não usado pelo npu/Makefile atual
         gtkwave # ondas VCD
         verible # LSP e formatador SystemVerilog
       ];
