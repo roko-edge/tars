@@ -42,7 +42,7 @@ The `model/` container is deferred until a non-sequential topology exists (Secti
 
 ### 2.1 Complete Tensor Engine (`src/math/tensor.rs`)
 - Full N-dimensional contiguous and strided `Tensor` implementation with `Arc` storage.
-- Compile-time element types on `Tensor<T>` (`f32` in the current phase; `Trit` in the v0.1.0 arc; `i8` deferred), with `DType` as the one-byte wire tag derived from the element type, matching [`engineering/specs/TENSOR.md`](../engineering/specs/TENSOR.md). Q8.24 is strictly a serialization format of the exporter and is not an element type.
+- Compile-time element types on `Tensor<T>` (`f32` in the current phase; `T3` in the v0.1.0 arc; `i8` deferred), with `DType` as the one-byte wire tag derived from the element type, matching [`engineering/specs/TENSOR.md`](../engineering/specs/TENSOR.md). Q8.24 is strictly a serialization format of the exporter and is not an element type.
 - Zero-copy view transformations: `slice`, `transpose`, `reshape`, `permute`.
 - Multidimensional NumPy-compliant broadcasting.
 - High-performance row-major matrix multiplication (`matmul`) for float tensors, and mixed-precision matrix multiplication for ternary weight tensors.
@@ -138,7 +138,7 @@ The optimizer of record for v0.1.0 is BGD; Adam is admissible but is not require
 | Term | Meaning |
 |---|---|
 | Training mode | `F32` training or quantization-aware ternary training; both operate on latent `F32` master weights |
-| Element type | The compile-time `T` of `Tensor<T>`: `f32` in the current phase, `Trit` in the v0.1.0 arc, `i8` deferred; `DType` is the one-byte wire tag derived from `T` |
+| Element type | The compile-time `T` of `Tensor<T>`: `f32` in the current phase, `T3` in the v0.1.0 arc, `i8` deferred; `DType` is the one-byte wire tag derived from `T` |
 | Export format | Q8.24 words or dense ternary words written under `npu/data/` from the layer manifest |
 | NPU mode | Layer-descriptor field: 0 (dense Q8.24, reserved), 1 (dense ternary, release), 2 (zero-skipping, v0.2.0), 3 (int8, future) |
 

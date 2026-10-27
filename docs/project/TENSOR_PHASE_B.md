@@ -69,7 +69,7 @@ The work packages survive the revision in substance; the mapping is recorded bel
 | WP-12 | Reshaped (October 2026): the public surface is the data round trip of Section 2.1 of the specification (`into_data`/`from_data`); raw buffer views are internal to the crate, per Invariance Rule 2 of [`FUTURE_TARGETS.md`](../engineering/FUTURE_TARGETS.md) |
 | WP-04 | Strengthened: the per-element-type physical addressing rule becomes the associated `Storage` contract of the `Element` trait; defect D-03 is enforced by the type system |
 | WP-11 | Reduced: the unsupported-variant diagnostics (D-02, D-15) are superseded by compile-time absence; the remaining scope is the precondition diagnostics (capacity, indices, zero divisor, alignment) |
-| WP-14 | Reframed as the `Trit` implementation block: packing, the dequantizing read, the mixed matmul, and byte alignment |
+| WP-14 | Reframed as the `T3` implementation block: packing, the dequantizing read, the mixed matmul, and byte alignment |
 
 The migration of the source to the typed contract precedes the continued closure work
 and is recorded in the current assignments of [`ROADMAP.md`](ROADMAP.md).

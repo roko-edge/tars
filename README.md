@@ -104,6 +104,13 @@ Copyright (c) 2026 The TARS Authors.
 The Rust package, the SystemVerilog NPU prototype, and this documentation are
 distributed under the Apache License, Version 2.0. The license text is available in
 the [`LICENSE`](LICENSE) file and the authorship record in the
-[`AUTHORS`](AUTHORS) file. The project is developed as a research initiative of the
-Universidade Federal do Cariri (UFCA). Commercial licensing terms may be obtained
-from the authors.
+[`AUTHORS`](AUTHORS) file. Apache-2.0 governs all use of this project, commercial
+use included; no separate commercial license is required.
+
+TARS is an independent open-source project: its copyright is held by the individual
+authors listed in [`AUTHORS`](AUTHORS). The authors are affiliated with the
+Universidade Federal do Cariri (UFCA), where TARS is studied and evaluated in
+academic research (see the companion
+[tars-research](https://github.com/roko-edge/tars-research) repository). UFCA is
+credited as the authors' affiliation and research home; it is not a copyright
+holder of this repository.

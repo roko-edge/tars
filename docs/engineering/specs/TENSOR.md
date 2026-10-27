@@ -90,15 +90,18 @@ pub struct Tensor<T: Element> {
 
 // Operations are delivered as per-type implementation blocks:
 //   impl Tensor<f32>  { ... }  // add, sub, scalar kernels, map, sum, matmul, matvec, outer
-//   impl Tensor<Trit> { ... }  // pack, unpack, dequantizing read, mixed matmul (subsequent phase)
+//   impl Tensor<T3> { ... }  // pack, unpack, dequantizing read, mixed matmul (subsequent phase)
 // An operation absent from a type's block does not exist for that type.
 ```
 
-The `f32` storage is `Arc<Vec<f32>>`. The `Trit` storage is packed `Arc<Vec<u8>>`
+The `f32` storage is `Arc<Vec<f32>>`. The `T3` storage is packed `Arc<Vec<u8>>`
 with a per-tensor scale (Sections 3.1 and 3.2). The `i8` element type is deferred
 beyond v0.1.0 (maintainer decision, October 2026): no implementation exists until
 it is implemented, which is the reserved-variant rule of the v0.1.0 layer descriptor
-applied to the element axis.
+applied to the element axis. The packed ternary element type is named `T3` after its
+wire tag `DType::T3` (maintainer decision, October 2026); the primitive element types
+keep their natural names, and the lowercase noun "trit" denotes a ternary digit
+independently of the type name.
 
 The device-neutral data record of the crate boundary — the exchange format of the
 exporter, the graph renderer, and, in later phases, the device engines — is:
@@ -108,7 +111,7 @@ pub struct TensorData {
     pub bytes: Vec<u8>,     // raw packed representation of Section 2.3, logical order
     pub shape: Vec<usize>,
     pub dtype: DType,
-    pub scale: Option<f32>, // the per-storage scale: W0 for `Trit`; absent for `f32`
+    pub scale: Option<f32>, // the per-storage scale: W0 for `T3`; absent for `f32`
 }
 ```
 
@@ -129,10 +132,10 @@ record is validated against the static element type at the construction boundary
    The first clause establishes the row-major element order. The second clause establishes that the tensor owns a packed buffer that begins at element zero, which is the precondition of every kernel that addresses the buffer directly. A tensor whose physical offset is non-zero is therefore not contiguous, even when its stride vector is canonical. A tensor whose logical extent is empty is contiguous whenever both clauses hold; the vacuous case carries no behavioral consequence, because such a tensor has no element to transfer.
 5. Buffer capacity constraints per element type, expressed as a logical element capacity:
     - The `f32` storage: at least $N$ elements (`f32`).
-    - The `Trit` storage: at least $N$ logical elements, materialized as $\lceil N / 4 \rceil$ bytes (`u8`), packing four trits per byte.
+    - The `T3` storage: at least $N$ logical elements, materialized as $\lceil N / 4 \rceil$ bytes (`u8`), packing four trits per byte.
     A buffer whose element capacity is below $N$ is a precondition violation at construction.
 6. `DType` occupies exactly one byte in memory and is copyable by value.
-7. A `Trit` tensor is **byte-aligned** when its `offset` and every entry of its
+7. A `T3` tensor is **byte-aligned** when its `offset` and every entry of its
    `strides` are multiples of four. A ternary view that is not byte-aligned is not a
    valid view, because the four trits sharing a byte cannot be addressed
    independently. Such a view is not produced by the view operations of Section 4 and
@@ -147,7 +150,7 @@ statement of how the packing of Section 3.1 reaches the byte buffer.
 |---|---|---|
 | `f32` | $\text{idx} \cdot 4$ | Not applicable |
 | `i8` (deferred) | $\text{idx}$ | Not applicable |
-| `Trit` | $\lfloor \text{idx} / 4 \rfloor$ | $(\text{idx} \bmod 4) \cdot 2$ |
+| `T3` | $\lfloor \text{idx} / 4 \rfloor$ | $(\text{idx} \bmod 4) \cdot 2$ |
 
 `offset` is always expressed in logical element units, for every element type.
 
@@ -161,7 +164,7 @@ two-phase evolution to prevent future architectural rework.
 ### 3.1 Canonical Bit-Packed Ternary (BitNet b1.58 / TQ2_0 Standard)
 Each trit is encoded using biased 2-bit unsigned integers ($\text{uint2} = \text{trit} + 1$):
 
-| Trit Value | Code (Binary) | Semantics |
+| Trit value | Code (Binary) | Semantics |
 | :---: | :---: | :--- |
 | $-1$ | `00` | Negative weight: subtract activation |
 | $0$ | `01` | Zero: skip (sparsity gating) |
@@ -192,7 +195,7 @@ per tensor; a per-channel scale is a subsequent extension. The `i8` element type
 deferred beyond v0.1.0 (maintainer decision, October 2026).
 
 ### 3.4 Extensibility to Succinct Mask + Sign Vectors (POPCNT)
-The `Trit` storage encapsulation guarantees that migrating internally to a Position Bitmap ($N$ bits) plus a Compact Sign Vector ($K$ bits) evaluated via `POPCNT` requires zero changes to the public `Tensor<T>` API, `Linear` layer, or `backward()` routines.
+The `T3` storage encapsulation guarantees that migrating internally to a Position Bitmap ($N$ bits) plus a Compact Sign Vector ($K$ bits) evaluated via `POPCNT` requires zero changes to the public `Tensor<T>` API, `Linear` layer, or `backward()` routines.
 
 ---
 
@@ -241,7 +244,7 @@ implementations, never the method signatures.
 
 #### 4.0.1 Gap Notes
 - `new` does not yet validate the element capacity of the supplied storage against the shape product, as required by Section 2.2, Invariant 5.
-- `zeros` does not yet materialize the ternary fill encoding of Section 3.1 for the `Trit` type; the `Trit` zero-allocation path belongs to the subsequent phase. The `f32` zeroed allocation exists.
+- `zeros` does not yet materialize the ternary fill encoding of Section 3.1 for the `T3` type; the `T3` zero-allocation path belongs to the subsequent phase. The `f32` zeroed allocation exists.
 - Element access exists for implemented element types only. A type without an implemented access path cannot be constructed, so there is no runtime unsupported-variant path; this supersedes the former empty-diagnostic termination of the container-level design.
 - `is_contiguous` applies a third clause, a non-empty backing buffer, which is not part of the definition of Section 2.2, Invariant 4.
 - The in-place axis swap alters the shape and stride vectors only. It does not write to the storage buffer and therefore does not trigger the buffer duplication of Section 5. Its diagnostic, shared with the non-in-place variant, is not yet worded according to the policy of Section 4.1, and the operation has no test coverage.
@@ -280,7 +283,7 @@ below partition the surface and state the exit condition of each.
 | Phase | Scope | Exit Condition |
 |---|---|---|
 | **Current: `f32` core** | Constructors, geometry accessors, element access over `f32`, the axis swap in both variants, `contiguous`, the element-wise kernels (`add`, `sub`, `mul_scalar`, `div_scalar`, `map`), `sum`, the products `matmul`, `matvec`, `outer` over `f32`, and the data-transfer surface of Section 2.1 (`into_data`, `from_data`) | Every operation of the phase satisfies Section 4.1 and is covered by the tensor test suite |
-| **Subsequent: `Trit` element type** | The `Trit` implementation block: packing and unpacking (Section 3.1), the dequantizing read, the ternary fast path of Section 3.2 (the mixed matmul of activations by ternary weights), and the alignment constraint of Section 2.2, Invariant 7. The `i8` element type and the scaling of Section 3.3 are deferred beyond v0.1.0 (maintainer decision, October 2026) | `Trit` round trips and dequantized values are covered by the tensor test suite |
+| **Subsequent: `T3` element type** | The `T3` implementation block: packing and unpacking (Section 3.1), the dequantizing read, the ternary fast path of Section 3.2 (the mixed matmul of activations by ternary weights), and the alignment constraint of Section 2.2, Invariant 7. The `i8` element type and the scaling of Section 3.3 are deferred beyond v0.1.0 (maintainer decision, October 2026) | `T3` round trips and dequantized values are covered by the tensor test suite |
 | **Deferred** | Reductions along arbitrary axes, `mean`, `slice`, `permute`, `reshape`, and multidimensional broadcasting | Each deferred operation receives its own contract in this specification before implementation |
 
 The deferral of axis reductions and of the view and broadcasting operations is
