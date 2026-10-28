@@ -3,23 +3,26 @@ module pe (
     rst,
     init,
     en,
-    input logic signed [31:0] w,
-    a,
+    input logic unsigned [1:0] w,
+    input logic signed [31:0] a,
     output logic signed [63:0] accumulator
 );
-  logic signed [63:0] raw_mult;
-  assign raw_mult = 64'(a) * 64'(w);
+  logic unsigned w_en, w_s;
+  t3_dec u_t3 (
+      .w,
+      .w_en,
+      .w_s
+  );
+  logic [63:0] term;
+  assign term = 64'(w_s ? 64'(-(33'(a))) : a);
   always_ff @(posedge clk or posedge rst) begin
     if (rst) begin
       accumulator <= 0;
     end else if (en) begin
       if (init) begin
-        accumulator <= (raw_mult >>> 24);
-      end else begin
-        //q8.24*q8.24 == q16.48
-        //>>> is the arithmetic right shift,preserve the sign
-        //The pattern is 24 bit after the dot,the shift preserve this
-        accumulator <= accumulator + (raw_mult >>> 24);
+        accumulator <= w_en ? term : 0;
+      end else if (w_en) begin
+        accumulator <= accumulator + term;
       end
     end
   end
