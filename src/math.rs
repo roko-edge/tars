@@ -6,6 +6,9 @@ pub use tensor::*;
 pub mod tensor_it;
 pub use tensor_it::*;
 
+pub mod float_tensor;
+pub use float_tensor::*;
+
 pub fn random_vec(len: usize) -> Vec<f32> {
     let mut vector = vec![0.0; len];
     for e in &mut vector {
