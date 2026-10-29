@@ -1,21 +1,90 @@
-use core::panic;
 use num_traits::Zero;
-use std::ops::{Add, Mul};
+use std::ops::{Add, AddAssign, Div, Mul, Sub};
 use std::{sync::Arc, vec};
 
-// pub trait DType: Copy + Default + Add<Output = Self> + Mul<Output = Self> {}
+#[repr(u8)]
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum DType {
+    F32,
+    T3,
+}
+
+pub trait Element {
+    type Storage;
+    const DTYPE: DType;
+}
+
+impl Element for f32 {
+    type Storage = Arc<Vec<f32>>;
+    const DTYPE: DType = DType::F32;
+}
+
+// u64 = T3 array
+impl Element for u64 {
+    type Storage = Arc<Vec<u64>>;
+    const DTYPE: DType = DType::T3;
+}
 
 #[derive(Debug, Clone)]
-pub struct Tensor<T> {
+pub struct Tensor<T: Element> {
     storage: Arc<Vec<T>>,
     shape: Vec<usize>,
     strides: Vec<usize>,
     offset: usize,
 }
 
+impl Tensor<f32> {
+    pub fn mul_scalar(&self, s: f32) -> Self {
+        let mut out = Tensor::zeros(self.shape.clone());
+        let mut idx = vec![0usize; self.shape.len()];
+        for _ in 0..self.numel() {
+            out.set(&idx, self.get(&idx) * s);
+            Self::step_logical(&self.shape, &mut idx);
+        }
+        out
+    }
+
+    pub fn mul_scalar_mut(&mut self, s: f32) {
+        let mut idx = vec![0usize; self.shape.len()];
+        for _ in 0..self.numel() {
+            self.set(&idx, self.get(&idx) * s);
+            Self::step_logical(&self.shape, &mut idx);
+        }
+    }
+
+    pub fn div_scalar(&self, s: f32) -> Self {
+        assert!(s != 0.0);
+        let mut out = Tensor::zeros(self.shape.clone());
+        let mut idx = vec![0usize; self.shape.len()];
+        for _ in 0..self.numel() {
+            out.set(&idx, self.get(&idx) / s);
+            Self::step_logical(&self.shape, &mut idx);
+        }
+        out
+    }
+
+    pub fn div_scalar_mut(&mut self, s: f32) {
+        let mut idx = vec![0usize; self.shape.len()];
+        for _ in 0..self.numel() {
+            self.set(&idx, self.get(&idx) / s);
+            Self::step_logical(&self.shape, &mut idx);
+        }
+    }
+}
+
+impl Tensor<u64> {}
+
 impl<T> Tensor<T>
 where
-    T: Clone + Default + Zero,
+    T: Clone
+        + Default
+        + Zero
+        + Add
+        + AddAssign
+        + Sub<Output = T>
+        + Mul<Output = T>
+        + Div<Output = T>
+        + Element,
 {
     pub fn new(data: Vec<T>, shape: Vec<usize>) -> Self {
         Self::from(data, shape, 0)
@@ -62,6 +131,17 @@ where
                 i -= 1;
             }
         }
+    }
+
+    pub fn get(&self, index: &[usize]) -> T {
+        let idx = self.storage_index(index);
+        self.storage[idx].clone()
+    }
+
+    pub fn set(&mut self, index: &[usize], value: T) {
+        let idx = self.storage_index(index);
+        let storage = Arc::make_mut(&mut self.storage);
+        storage[idx] = value;
     }
 
     pub fn make_contiguous(&self) -> Self {
@@ -130,7 +210,7 @@ where
         }
     }
 
-    pub fn map(&self, f: impl Fn(f32) -> f32) -> Self {
+    pub fn map(&self, f: impl Fn(T) -> T) -> Self {
         let mut out = Tensor::zeros(self.shape.clone());
         let mut idx = vec![0usize; self.shape.len()];
         for _ in 0..self.numel() {
@@ -140,7 +220,7 @@ where
         out
     }
 
-    pub fn map_mut(&mut self, f: impl Fn(f32) -> f32) {
+    pub fn map_mut(&mut self, f: impl Fn(T) -> T) {
         let mut idx = vec![0usize; self.shape.len()];
         for _ in 0..self.numel() {
             self.set(&idx, f(self.get(&idx)));
@@ -178,7 +258,7 @@ where
         let mut out = Tensor::zeros(vec![self.shape[0]]);
         let mut acc;
         for i in 0..self.shape[0] {
-            acc = 0.0;
+            acc = T::default();
             for j in 0..self.shape[1] {
                 acc += self.get(&[i, j]) * other.get(&[j]);
             }
@@ -195,7 +275,7 @@ where
         let mut acc;
         for k in 0..other.shape[1] {
             for i in 0..self.shape[0] {
-                acc = 0.0;
+                acc = T::default();
                 for j in 0..self.shape[1] {
                     acc += self.get(&[i, j]) * other.get(&[j, k]);
                 }
@@ -204,9 +284,7 @@ where
         }
         out
     }
-}
 
-impl<T: Add + Mul> Tensor<T> {
     pub fn add(&self, other: &Self) -> Self {
         assert_eq!(self.shape, other.shape, "");
         let mut out = Tensor::zeros(self.shape.clone());
@@ -287,51 +365,14 @@ impl<T: Add + Mul> Tensor<T> {
         }
     }
 
-    pub fn mul_scalar(&self, s<T>) -> Self {
-        let mut out = Tensor::zeros(self.shape.clone());
-        let mut idx = vec![0usize; self.shape.len()];
-        for _ in 0..self.numel() {
-            out.set(&idx, self.get(&idx) * s);
-            Self::step_logical(&self.shape, &mut idx);
-        }
-        out
-    }
-
-    pub fn mul_scalar_mut(&mut self, s: f32) {
-        let mut idx = vec![0usize; self.shape.len()];
-        for _ in 0..self.numel() {
-            self.set(&idx, self.get(&idx) * s);
-            Self::step_logical(&self.shape, &mut idx);
-        }
-    }
-
-    pub fn div_scalar(&self, s: f32) -> Self {
-        assert!(s != 0.0);
-        let mut out = Tensor::zeros(self.shape.clone());
-        let mut idx = vec![0usize; self.shape.len()];
-        for _ in 0..self.numel() {
-            out.set(&idx, self.get(&idx) / s);
-            Self::step_logical(&self.shape, &mut idx);
-        }
-        out
-    }
-
-    pub fn div_scalar_mut(&mut self, s: f32) {
-        let mut idx = vec![0usize; self.shape.len()];
-        for _ in 0..self.numel() {
-            self.set(&idx, self.get(&idx) / s);
-            Self::step_logical(&self.shape, &mut idx);
-        }
-    }
-}
-
-impl<T: Clone> Tensor<T> {
     fn storage_index(&self, indices: &[usize]) -> usize {
         assert_eq!(
             indices.len(),
             self.shape.len(),
             "indices must match with shape len"
-        ); let idx: usize = indices
+        );
+
+        let idx: usize = indices
             .iter()
             .zip(self.shape.iter())
             .zip(self.strides.iter())
@@ -350,17 +391,6 @@ impl<T: Clone> Tensor<T> {
 
     pub fn from_slice(data: &[T], shape: Vec<usize>) -> Self {
         Self::from_vec(data.to_vec(), shape)
-    }
-
-    pub fn get(&self, index: &[usize]) -> T {
-        let idx = self.storage_index(index);
-        self.storage[idx].clone()
-    }
-
-    pub fn set(&mut self, index: &[usize], value: T) {
-        let idx = self.storage_index(index);
-        let storage = Arc::make_mut(&mut self.storage);
-        storage[idx] = value;
     }
 
     pub fn shape(&self) -> &[usize] {
