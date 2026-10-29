@@ -18,16 +18,18 @@ module layer_engine
 );
 
   npu_pkg::state_t state;
+
   function automatic [63:0] safe_log;
     input [63:0] x;
     safe_log = x < 2 ? 64'(1) : 64'($clog2(x));
   endfunction
 
-  logic unsigned [safe_log(OUT)-1:0] j;
-  logic unsigned [safe_log(IN)-1:0] i;
+  logic unsigned [safe_log(64'(OUT))-1:0] j;
+  logic unsigned [safe_log(64'(IN))-1:0] i;
   logic unsigned [safe_log(OUT*IN)-1:0] w_ptr;
 
   logic signed [63:0] pe_acc;
+
   pe u_pe (
       .clk        (clk),
       .rst        (rst),
@@ -58,11 +60,12 @@ module layer_engine
       done  <= 0;
 
       state <= IDLE;
+
     end else begin
+      done <= (state == WRITE) && (32'(j) == OUT - 1);
       unique case (state)
         IDLE: begin
           if (start) begin
-            done <= 0;
             state <= RUN;
             i <= 0;
             j <= 0;
@@ -83,7 +86,6 @@ module layer_engine
           i <= 0;
           if (32'(j) == OUT - 1) begin
             state <= IDLE;
-            done <= 1;
             j <= 0;
             w_ptr <= 0;
           end else begin
