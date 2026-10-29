@@ -90,5 +90,7 @@ it does not consume the model trained by `main`. It writes:
 
 Hardware setup, simulation, waveform inspection, and lint commands are documented in
 [`npu/README.md`](../npu/README.md). The current prototype computes a single affine
-layer (testbench: `IN = 2`, `OUT = 1`) with per-output bias and final signed
-saturation, and prints results without automatic target assertions.
+layer with dense ternary weights (testbench: `IN = 2`, `OUT = 1`): conditional
+add/subtract accumulation, the per-layer $W_0$ epilogue with two saturations and
+per-output bias, and prints results without automatic target assertions. The flow is
+Verilator-only.

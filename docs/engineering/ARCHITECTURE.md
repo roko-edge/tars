@@ -40,12 +40,15 @@ src/
     main.rs               Training executable with source-selected experiment
     visualization.rs      Hard-coded graph visualization executable
 npu/
-  src/npu.sv              Parameterized single-layer affine controller (`IN`, `OUT`)
-  src/pe.sv               Multiply-accumulate processing element
-  src/linear.sv           Empty placeholder for the layer engine
+  src/npu_pkg.sv          Shared package: activation/state types and Q8.24 constants
+  src/t3_dec.sv           2-bit ternary weight decode ($v = b_0 - b_1$)
+  src/pe.sv               Ternary conditional add/subtract processing element
+  src/epilogue.sv         $W_0$ scale, saturations, bias, and activation
+  src/layer_engine.sv     Parameterized single-layer engine controller (`IN`, `OUT`)
   tests/tb.sv             Simulation testbench
   data/                    Memory files consumed by the testbench
-  Makefile                Simulation, waveform, and lint targets
+  files.f                 Single source RTL file list (Makefile and LSP)
+  Makefile                Simulation, test, waveform, and lint targets
 ```
 
 ## Rust model
@@ -166,24 +169,49 @@ the main executable.
 
 ## SystemVerilog Hardware Subsystem
 
-`npu/src/npu.sv` defines the top-level `npu` module, parameterized by vector length `N`:
+`npu/src/layer_engine.sv` defines the `layer_engine` module (successor of the
+former `npu` top level), parameterized by vector lengths `IN` and `OUT`:
 
 ```systemverilog
-module npu #(
+module layer_engine #(
     parameter int IN  = 2,
     parameter int OUT = 2
 ) (
-    input  logic               clk,
-    input  logic               rst,
-    input  logic               start,
-    output logic               done,
-    output logic signed [31:0] result[OUT]
+    input  logic                     clk,
+    input  logic                     rst,
+    input  logic                     start,
+    input  npu_pkg::activation_t     act_fn,
+    input  logic [1:0]               w[IN*OUT],
+    input  logic signed [31:0]       a[IN],
+    input  logic signed [31:0]       b[OUT],
+    input  logic signed [31:0]       w0,
+    output logic signed [31:0]       result[OUT],
+    output logic                     done
 );
 ```
 
-The top-level NPU module uses a state machine (`IDLE`, `BUSY`) that sequences one output neuron at a time: for each output index `j`, it feeds `IN` input/weight pairs to the Processing Element (`pe.sv` in `npu/src/`), which maintains a 64-bit signed accumulator (`pe_acc`) operating on Q8.24 fixed-point words. After each output, the top level adds the per-output bias `b[j]` and saturates the sum to the signed 32-bit result range before committing it to `result[j]`. Internal memory arrays (`b[OUT]`, `w[IN*OUT]`, `a[IN]`) are populated via `$readmemh` from `data/` memory files.
+The engine uses a three-state machine (`npu_pkg::state_t`: `IDLE`, `RUN`,
+`WRITE`) that sequences one output neuron at a time. In `RUN` it walks the
+input vector, feeding each activation and its 2-bit weight code to `t3_dec`
+(`src/t3_dec.sv`), which decodes $v = b_0 - b_1$, and to the Processing
+Element (`pe.sv`), which conditionally adds or subtracts into a signed 64-bit
+accumulator (negation evaluated at 33 bits). Weight addressing uses the linear
+stream pointer `w_ptr` (rule R1 of LOG-007, Section 2.4), not the product
+form $j \cdot IN + i$. In `WRITE` the engine commits `result[j]` from the
+`epilogue` (`src/epilogue.sv`), which evaluates the 96-bit $W_0$ product, the
+arithmetic shift by 24, two saturations, the bias, and the activation, per
+[`specs/ARITHMETIC_Q8_24.md`](specs/ARITHMETIC_Q8_24.md), Section 3.3.
+Shared types and constants live in `src/npu_pkg.sv`; the RTL file order is
+declared once in `npu/files.f`.
 
-`npu/tests/tb.sv` instantiates the DUT (`IN = 2`, `OUT = 1`), loads `data/bias.mem`, `data/weights.mem`, and `data/activations.mem`, executes four sequential evaluations with reset between them, logs trace outputs via `$dumpfile` / `$dumpvars`, and displays formatted Q8.24 results without automated assertions.
+`npu/tests/tb.sv` instantiates the DUT (`IN = 2`, `OUT = 1`), loads
+`data/bias.mem`, `data/weights.mem`, and `data/activations.mem` into
+testbench-level arrays that drive the DUT ports, sets `w0` to $1.0$ in Q8.24,
+executes four sequential evaluations with reset between them, logs trace
+outputs via `$dumpfile` / `$dumpvars`, and displays formatted Q8.24 results
+without automated assertions. The checked-in `data/weights.mem` holds legacy
+dense Q8.24 words while the engine consumes 2-bit ternary codes; the ternary
+weight export arrives with implementation Step 1.
 
 ## Integration Boundary
 
@@ -191,8 +219,8 @@ The Rust export module (`src/export.rs`) converts floating-point weights, biases
 
 | Artifact File | Format | Source Generator | Consumer |
 |---|---|---|---|
-| `npu/data/weights.mem` | Q8.24 Hex | `export_model()` | `$readmemh` into `dut.w` |
-| `npu/data/bias.mem` | Q8.24 Hex | `export_model()` | `$readmemh` into `dut.b` |
+| `npu/data/weights.mem` | Q8.24 Hex (legacy dense) | `export_model()` | `$readmemh` into the testbench weight array (2-bit codes expected by the engine; mismatch until Step 1) |
+| `npu/data/bias.mem` | Q8.24 Hex | `export_model()` | `$readmemh` into the testbench bias array |
 | `npu/data/activations.mem` | Q8.24 Hex | `export_data()` | `$readmemh` into the testbench data array |
 | `npu/data/target.mem` | Q8.24 Hex | `export_data()` | Not loaded by the current testbench |
 

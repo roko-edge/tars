@@ -105,8 +105,9 @@ pending and relates to the planned quantization-loss log (LOG-002 per the
 ### 2.8 Open Implementation Points
 
 1. **Memory width and stream separation.** Mode 1 (2-bit) and mode 2 (5-bit)
-   assign incompatible meanings to bit 0 — active flag in mode 1, sign in mode 2
-   (Section 2.4 here versus
+   assign incompatible meanings to bit 0 — the low operand of the dense
+   difference $v = b_0 - b_1$ in mode 1 (activity is $b_1 \oplus b_0$, not a
+   dedicated flag), sign in mode 2 (Section 2.4 here versus
    [LOG-007](LOG-007-v0_execution_mode_phasing.md), Section 2.3). Separate
    memories or a width-parameterized stream is decided at v0.2.0 implementation.
 2. **Stream integrity.** EOR-only termination desynchronizes on a corrupted or

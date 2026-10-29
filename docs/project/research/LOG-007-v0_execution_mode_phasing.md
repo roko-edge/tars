@@ -5,8 +5,9 @@
 [`LOG-006-ternary_zero_skipping_encoding.md`](LOG-006-ternary_zero_skipping_encoding.md).
 
 **State:** Accepted scope decision and release plan (maintainer position).
-Nothing described in this log is implemented in the current repository; all
-quantitative figures are projections pending the gates of Section 4.
+The single-layer ternary core (decode, processing element, epilogue, layer
+engine) is implemented; the multi-layer scope below remains gated by
+Section 4, and all quantitative figures are projections pending those gates.
 
 This log records the v0.1.0 hardware scope — multi-layer layer engine,
 ping-pong activation banks, execution modes 0 and 1, with mode 2 reserved in
@@ -49,37 +50,79 @@ Shipping `mode = 1` in v0.1.0 therefore validates surfaces 1 and 2 on a
 well-understood addressing substrate, and leaves zero-skipping as the single
 new variable of v0.2.0.
 
-### 2.2 Ternary Epilogue Contract (Pending Sign-Off)
+### 2.2 Ternary Epilogue Contract (Maintainer Sign-Off; Remaining Owners Pending)
 
-The per-neuron epilogue for ternary modes, subject to sign-off by the three
-intersection owners:
+The per-neuron epilogue for ternary modes. Normative formula:
 
-$$z = \mathrm{sat}_{32}\big( (\mathrm{acc} \cdot W_0) \gg 24 \big), \qquad
+$$z = \mathrm{sat}_{32}\big( (\mathrm{acc} \cdot W_0) \ggg 24 \big), \qquad
 \mathrm{out} = \mathrm{act}\big( \mathrm{sat}_{32}(z + b_j) \big)$$
 
-The accumulation $\mathrm{acc}$ is 64-bit over conditionally added or
-subtracted activations; the $W_0$ product is Q8.24 by Q8.24 (Q16.48) reduced
-by an arithmetic right shift of 24 bits; truncation remains normative until
-changed. Per Engineering Invariant 4 of the
-[roadmap](../ROADMAP.md), any revision to this formula requires simultaneous
-updates to [`ARITHMETIC_Q8_24.md`](../../engineering/specs/ARITHMETIC_Q8_24.md),
+Normative properties, by order of evaluation:
+
+1. **96-bit product.** $\mathrm{acc}$ is a 64-bit signed accumulator and $W_0$
+   is a 32-bit signed Q8.24 word; the product is evaluated at 96 bits and
+   never wraps. The $Q16.48$ framing of
+   [`ARITHMETIC_Q8_24.md`](../../engineering/specs/ARITHMETIC_Q8_24.md),
+   Section 3.1, covers only 32-by-32-bit operands and does not describe this
+   product.
+2. **Arithmetic shift of 24 (floor).** $\ggg$ denotes the arithmetic right
+   shift, which floors toward negative infinity. This truncation is
+   normative; the Rust golden model must reproduce it with an arithmetic
+   shift, not with a cast that truncates toward zero.
+3. **Two saturations, fixed order.** One saturation clamps the scaled product
+   to 32 bits before the bias is added; the second clamps the biased sum.
+   $W_0$ is applied before the bias — the bias lives in the scaled domain.
+4. **$W_0$ per layer (scalar).** v0.1.0 stores one Q8.24 $W_0$ value per
+   layer ($w0.mem$). A per-channel $W_0[j]$ is a compatible future extension
+   that does not change the hardware structure.
+5. **Multiplier outside the array.** The $W_0$ multiplier lives in the
+   epilogue, one per epilogue, not in the processing elements; the zero-DSP
+   obligation of the PE is unaffected.
+
+**Sign-off status.** The maintainer (Arthur) confirmed this contract,
+including the 96-bit product and the floor-shift correction, in October 2026.
+Sign-off by the remaining intersection owners required by Engineering
+Invariant 4 of the [roadmap](../ROADMAP.md) is pending. Per that invariant,
+any revision to this formula requires simultaneous updates to
+[`ARITHMETIC_Q8_24.md`](../../engineering/specs/ARITHMETIC_Q8_24.md),
 `src/export.rs`, and the NPU RTL in one revision.
 
 ### 2.3 Dense Ternary Weight Encoding (2 Bits)
 
-Standard for `mode = 1` weight words: bit 0 is the active flag, bit 1 is the
-sign.
+**Amended, October 2026 (maintainer decision).** Standard for `mode = 1`
+weight words: the weight is the difference of the two bits,
+$v = b_0 - b_1$. All four codes are valid; there is no illegal state.
 
-| Word | Field decode | Weight |
+| Code ($b_1 b_0$) | $v = b_0 - b_1$ | Weight |
 |---|---|---|
-| `2'b00` | inactive | $0$ |
-| `2'b01` | active, negative | $-1$ |
-| `2'b11` | active, positive | $+1$ |
-| `2'b10` | unused | reserved |
+| `2'b00` | $0 - 0$ | $0$ |
+| `2'b01` | $1 - 0$ | $+1$ |
+| `2'b10` | $0 - 1$ | $-1$ |
+| `2'b11` | $1 - 1$ | $0$ (redundant zero, self-cancelling) |
 
-This is a per-mode stream format, not bit-compatible with the 5-bit token
-scheme of LOG-006, whose bit 0 is the sign and whose bits 4:1 are the skip
-distance. The two streams are never decoded interchangeably.
+Rationale:
+
+- $\pm 1$ codes sit at Hamming distance 2, so a single-bit flip can never
+  flip the sign of a weight.
+- An all-ones word (erased flash, `0xFF`) decodes as all-zero — fail-safe.
+- Negation is the bitwise complement of the code.
+- The safe zero `2'b11` of the original Tars contract is preserved.
+
+This encoding supersedes the previous table of this section
+(`2'b01` $=-1$, `2'b11` $=+1$, `2'b10` reserved). The reserved code
+`2'b10` no longer exists in the dense stream: the sparse mode therefore
+enters exclusively as the 5-bit token stream of
+[LOG-006](LOG-006-ternary_zero_skipping_encoding.md) under `mode = 2`,
+which closes the open stream-entry decision of
+[`NPU_SPECIALIZATION_PROPOSAL.md`](../../engineering/NPU_SPECIALIZATION_PROPOSAL.md),
+Section 3, obligation 6.
+
+The dense encoding is a per-mode stream format, not bit-compatible with the
+5-bit token scheme of LOG-006, whose bit 0 is the sign and whose bits 4:1
+are the skip distance. The two streams are never decoded
+interchangeably. The Rust ternary encoder in `src/export.rs` does not exist
+yet and must be born with this encoding (implementation Step 1); the RTL
+decode is `src/t3_dec.sv`.
 
 ### 2.4 Design Rules for v0.2.0 Compatibility
 
@@ -100,7 +143,8 @@ mode to a localized change:
 
 ## 3. Empirical Benchmarks
 
-No RTL support exists; figures are projections. Benchmark network: MNIST MLP
+The figures below are projections; no measurement has been attached to this
+log yet. Benchmark network: MNIST MLP
 $784 \to 128 \to 10$. Reproducible commands, seeds, and measurements attach to
 this log at the gate that produces them.
 
@@ -164,9 +208,10 @@ memory format at Step 1, and `npu/README.md` after the RTL changes.
 ## 5. Revision (October 2026): Ternary-Only Release Engine
 
 **Superseding maintainer decision.** The release NPU implements `mode = 1` (dense
-ternary) only. The dense Q8.24 weight mode is not a shipped mode: the existing
-single-layer Q8.24 prototype remains as the development substrate and as the
-synthesis baseline for resource and energy comparisons. The int8 variant
+ternary) only. The dense Q8.24 weight mode is not a shipped mode: the single-layer
+Q8.24 prototype was replaced in the source tree by the ternary engine (October
+2026) and is retained in repository history as the development substrate and as
+the synthesis baseline for resource and energy comparisons. The int8 variant
 (`mode = 3`) is reserved in the descriptor and postponed beyond v0.1.0. The
 accuracy release gate is $> 90\%$ for the ternary-quantized model on the bit-exact
 path; the $\ge 95\%$ figure remains the target of the f32 software reference. The

@@ -43,14 +43,27 @@ The NPU processes these entries as signed 32-bit Q8.24 words.
 `src/export.rs` exports trained weights and biases converted through
 `to_q8_24(x: f32) -> u32` as eight-digit hexadecimal words.
 
-The SystemVerilog DUT loads these files into internal memory arrays:
+The SystemVerilog testbench loads these files into testbench-level arrays that drive the DUT ports:
 
 ```systemverilog
-$readmemh("data/weights.mem", dut.w);
-$readmemh("data/bias.mem", dut.b);
+$readmemh("data/bias.mem", b);
+$readmemh("data/weights.mem", w);
 ```
 
-Values are loaded directly as signed 32-bit Q8.24 integers. Multiplication produces a 64-bit product (Q16.48); the processing element reduces it with an arithmetic right shift by 24 bits and accumulates the full-width reduced product in a 64-bit accumulator. The top level adds the per-output bias and saturates the sum to the signed 32-bit Q8.24 range.
+Values are loaded directly as signed 32-bit Q8.24 integers (bias), while the
+engine's weight port `w` is a 2-bit ternary code array decoded as
+$v = b_0 - b_1$. The checked-in `weights.mem` still holds legacy dense Q8.24
+words; reading it into the 2-bit array truncates each word to its two low
+bits. The ternary weight export (`wt.mem`) arrives with implementation Step 1
+of [`LOG-007`](../project/research/LOG-007-v0_execution_mode_phasing.md),
+Section 4.2.
+
+The engine accumulates the conditionally added or subtracted activations in a
+64-bit accumulator. The epilogue then evaluates the 96-bit product of the
+accumulator and the per-layer scale `w0`, reduces it with an arithmetic right
+shift by 24 bits (floor), saturates to 32 bits, adds the per-output bias,
+saturates again, and applies the activation
+([`specs/ARITHMETIC_Q8_24.md`](specs/ARITHMETIC_Q8_24.md), Section 3.3).
 
 ## `target.mem`
 
@@ -58,11 +71,11 @@ Values are loaded directly as signed 32-bit Q8.24 integers. Multiplication produ
 
 ## Size and Configuration
 
-The testbench configures the top-level NPU with `IN = 2` and `OUT = 1`. The module supports sequential computation of `OUT` output neurons from `IN` input activations within a single affine layer. Multi-layer chaining and activation units are scheduled for Phase 3 via the Layer Engine FSM.
+The testbench configures the layer engine with `IN = 2` and `OUT = 1`. The module supports sequential computation of `OUT` output neurons from `IN` input activations within a single affine layer. Multi-layer sequencing (top sequencer, `program.mem`, ping-pong banks) is scheduled as Steps 4 and 5 of [`LOG-007`](../project/research/LOG-007-v0_execution_mode_phasing.md), Section 4.2.
 
 ## Current Limitations
 
 - **Layer Manifest:** Model topology, layer counts, and per-layer dimensions are not yet encapsulated in a formal manifest. Manifest extraction from `Sequential` is the v0.1.0 scope; the `Model<M>` container is deferred until a non-sequential topology exists.
-- **Rounding Mode:** Rust and RTL both use simple truncation rather than round-half-to-even.
-- **Automated Assertions:** `npu/tests/tb.sv` logs outputs and dumps waveforms but does not yet assert bit-exact equality against golden vectors with non-zero exit codes.
-- **Per-Product Reduction:** The processing element accumulates the full-width arithmetic-shifted product rather than the 32-bit slice of the arithmetic contract ([`specs/ARITHMETIC_Q8_24.md`](specs/ARITHMETIC_Q8_24.md), Section 3.1); the deviation is recorded there.
+- **Weight File Format:** `weights.mem` holds legacy dense Q8.24 words while the engine consumes 2-bit ternary codes; the ternary export (`wt.mem`) arrives with implementation Step 1.
+- **Rounding Mode:** Rust export truncates toward zero while the epilogue reduces with an arithmetic right shift (floor); the golden model must replicate the floor semantics. Neither side uses round-half-to-even ([`specs/ARITHMETIC_Q8_24.md`](specs/ARITHMETIC_Q8_24.md), Section 3.4).
+- **Automated Assertions:** `npu/tests/tb.sv` logs outputs and dumps waveforms but does not yet assert bit-exact equality against golden vectors. `make test` propagates the testbench exit code, so the target fails automatically once `$fatal` assertions exist.

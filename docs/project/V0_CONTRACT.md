@@ -58,7 +58,7 @@ The `model/` container is deferred until a non-sequential topology exists (Secti
 
 ### 2.3 Respective NPU Hardware (`npu/`)
 - Multi-cycle **Layer Engine FSM** in SystemVerilog capable of processing $784 \to H \to 10$ layer shapes.
-- **Ternary-only release engine:** 2-bit dense ternary weights with conditional add/sub/zero accumulation, a Q8.24 activation substrate, and the per-layer scale $W_0$ applied in the epilogue before the bias. The dense Q8.24 weight mode is not implemented in the release engine; the existing single-layer Q8.24 prototype remains as the development substrate and as the synthesis baseline for resource and energy comparisons (maintainer decision, October 2026).
+- **Ternary-only release engine:** 2-bit dense ternary weights with conditional add/sub/zero accumulation, a Q8.24 activation substrate, and the per-layer scale $W_0$ applied in the epilogue before the bias. The dense Q8.24 weight mode is not implemented in the release engine; the single-layer Q8.24 prototype was replaced in the source tree by the ternary engine (October 2026) and is retained in repository history as the development substrate and as the synthesis baseline for resource and energy comparisons (maintainer decision, October 2026).
 - Layer-descriptor modes are reserved: `mode = 0` (dense Q8.24, unused), `mode = 1` (dense ternary, release), `mode = 2` (zero-skipping, v0.2.0), `mode = 3` (int8, future phase).
 - 64-bit saturating accumulator to prevent overflow during 784-element dot products.
 - Self-checking simulation testbench (`tb.sv`) verifying NPU execution against Rust golden vectors with $0$ bit errors.

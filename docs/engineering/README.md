@@ -17,6 +17,7 @@ not establish that a planned capability is available.
 | Evaluate the observability design | [`OBSERVABILITY_PROPOSAL.md`](OBSERVABILITY_PROPOSAL.md) | Proposal, not implemented |
 | Review future execution targets and invariance rules | [`FUTURE_TARGETS.md`](FUTURE_TARGETS.md) | Target architecture record for the GPU and embedded phases |
 | Review the NPU specialization and generator model | [`NPU_SPECIALIZATION_PROPOSAL.md`](NPU_SPECIALIZATION_PROPOSAL.md) | Proposal, not implemented; v0.1.0 obligations bind the engine steps |
+| Review the assembly layers, engine contract, and test tiers | [`ASSEMBLY_AND_TEST_MODEL.md`](ASSEMBLY_AND_TEST_MODEL.md) | Proposal; records pending decision briefs for the v0.1.0 steps |
 | Review normative and target contracts | [`specs/README.md`](specs/README.md) | Mixed current and target contracts with explicit status |
 
 ---

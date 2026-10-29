@@ -36,12 +36,12 @@ The Nix flake defines development shells for `x86_64-linux`:
 ```bash
 nix develop             # Rust, NPU, Nix, and visualization tools
 nix develop .#rust      # Rust and visualization tools
-nix develop .#hardware  # Icarus Verilog, Verilator, GTKWave, and Verible
+nix develop .#hardware  # Verilator, GTKWave, Verible (the NPU flow is Verilator-only)
 ```
 
 Without Nix, install a Rust 2024 toolchain and Graphviz. The package depends on
-`rand`, `petgraph`, and `yaml-rust2`. The NPU commands require GNU Make, Icarus
-Verilog, Verilator, and GTKWave as applicable.
+`rand`, `petgraph`, and `yaml-rust2`. The NPU commands require GNU Make,
+Verilator, and GTKWave as applicable; the NPU flow is Verilator-only.
 
 ## Rust
 
@@ -81,8 +81,10 @@ make lint
 make clean
 ```
 
-`make sim` compiles `src/pe.sv`, `src/npu.sv`, and `tests/tb.sv`, then prints the
-result signals. The testbench does not assert expected results or read `target.mem`.
+`make sim` compiles the RTL list in `npu/files.f` (`npu_pkg.sv`, `t3_dec.sv`,
+`pe.sv`, `epilogue.sv`, `layer_engine.sv`) together with `tests/tb.sv`, then
+prints the result signals. `make test` propagates the testbench exit code. The
+testbench does not yet assert expected results or read `target.mem`.
 See [`npu/README.md`](npu/README.md) for the remaining targets and limitations.
 
 ## Documentation

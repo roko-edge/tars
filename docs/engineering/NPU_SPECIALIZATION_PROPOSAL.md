@@ -89,13 +89,16 @@ These bind the current phase so that the generator phase is mechanical.
 5. **Runtime-elaboration separation.** The runtime shape registers of Step 2
    and the sizing parameters of the future generator are distinct, named
    surfaces; a generator sets the latter without touching the former.
-6. **Open decision — sparse stream entry** (owner: the layer-manifest format
-   contract, LOG-007 Step 1). Sparse runs enter either as the `mode = 2`
-   five-bit token stream of
-   [`LOG-006`](../project/research/LOG-006-ternary_zero_skipping_encoding.md)
-   (the recorded default) or as a skip-run reserved code within the `mode = 1`
-   dense stream (the `2'b10` word is reserved). The decision rides with the
-   manifest contract. The principle is encoding-first, detection-never.
+6. **Closed — sparse stream entry** (maintainer decision, October 2026;
+   recorded in [`LOG-007`](../project/research/LOG-007-v0_execution_mode_phasing.md),
+   Section 2.3). Sparse runs enter exclusively as the `mode = 2` five-bit
+   token stream of
+   [`LOG-006`](../project/research/LOG-006-ternary_zero_skipping_encoding.md).
+   The alternative skip-run reserved code inside the `mode = 1` dense stream
+   is rejected: the dense ternary encoding now assigns all four 2-bit codes
+   (`v = b_0 - b_1`), so no reserved word remains available. The dense and
+   token streams are never decoded interchangeably. The principle is
+   encoding-first, detection-never.
 7. **Recorded, not implemented.** One manifest artifact feeds the elaboration
    defines and the program packer (the NVDLA `project.h`/`project.vh` pattern),
    and a ConfigROM-style readable register exposes the build configuration to
@@ -122,4 +125,4 @@ These bind the current phase so that the generator phase is mechanical.
 | [`LOG-007`](../project/research/LOG-007-v0_execution_mode_phasing.md) | The operative v0.1.0 ladder; the obligations of Section 3 ride with its Steps 2 through 5 |
 | [`V0_CONTRACT.md`](../project/V0_CONTRACT.md), Sections 2.3 and 5 | Release-engine scope and the manifest IR invariant |
 | [`FUTURE_TARGETS.md`](FUTURE_TARGETS.md) | Invariance rules and phase placement; the generator phase extends the v1.0+ expansion |
-| [`LOG-006`](../project/research/LOG-006-ternary_zero_skipping_encoding.md) | The `mode = 2` token encoding; the open stream-entry decision of Section 3 |
+| [`LOG-006`](../project/research/LOG-006-ternary_zero_skipping_encoding.md) | The `mode = 2` token encoding; the stream-entry decision of Section 3, closed to this encoding |
