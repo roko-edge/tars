@@ -29,7 +29,7 @@ compile-time parameter; the physical storage representation is defined per eleme
 type; the geometry (`shape`, `strides`, `offset`) is shared and type-independent.
 
 | Layer | Responsibility | Rationale |
-|---|---|---|
+| --- | --- | --- |
 | `Tensor<T>` | One concrete tensor type per element type `T: Element`; geometrical metadata is shared | The execution contexts of this project are statically typed: training is `f32`-latent in all modes, the bit-exact reference is ternary, and the export path is generic over `T`. Mixed-precision kernels (activations by ternary weights) have a static type shape that belongs in signatures, not in runtime checks |
 | `Element` | The per-type contract: the associated `Storage`, the wire `DType`, the element capacity of a buffer, and the dequantizing element read | Encodes the per-(operation, type) status matrix of this specification as per-type implementation blocks: an operation absent from a type's block is absent at compile time instead of being reported at runtime. Planned GPU kernels (cubecl, v0.3.0) are typed per element by construction |
 | `DType` | One-byte copyable wire tag for serialization, the layer manifest, and the hardware descriptor `mode` field | The tag names a representation in artifacts; it is derived from the element type and never stored in the tensor |
@@ -45,11 +45,12 @@ retained solely as a serialization format within `src/export.rs` for generating 
 operator graph imposes artificial software overhead without parity benefit.
 
 ### 1.2 Implementation Status Vocabulary
+
 Section 4 annotates each member of the minimum viable surface with an implementation
 status, recorded per (element type, operation) pair. The vocabulary is normative:
 
 | Status | Meaning |
-|---|---|
+| --- | --- |
 | `Implemented` | The behavior described by this specification is present and exercised by the test suite |
 | `Partial` | The operation exists but does not yet satisfy every clause of its contract |
 | `Not implemented` | The operation is specified here and absent from the runtime |
@@ -90,7 +91,7 @@ pub struct Tensor<T: Element> {
 
 // Operations are delivered as per-type implementation blocks:
 //   impl Tensor<f32>  { ... }  // add, sub, scalar kernels, map, sum, matmul, matvec, outer
-//   impl Tensor<T3> { ... }  // pack, unpack, dequantizing read, mixed matmul (subsequent phase)
+//   impl Tensor<T> { ... }
 // An operation absent from a type's block does not exist for that type.
 ```
 
@@ -120,6 +121,7 @@ record is validated against the static element type at the construction boundary
 (Section 4.1).
 
 ### 2.2 Invariants
+
 1. `shape.len() == strides.len()`.
 2. Total logical elements: $N = \prod_{i=0}^{D-1} \text{shape}[i]$. For scalar tensors ($D=0$), $N=1$.
 3. Storage bounds: for all multi-indices $(i_0, \dots, i_{D-1})$ with $0 \le i_k < \text{shape}[k]$, the physical index
@@ -142,12 +144,13 @@ record is validated against the static element type at the construction boundary
    is not eligible for in-place mutation.
 
 ### 2.3 Index and Addressing Model
+
 The logical element index of Section 2.2, Invariant 3, is resolved into a physical
 address according to the element type. This model is the single normative
 statement of how the packing of Section 3.1 reaches the byte buffer.
 
 | Element type | Byte address of element `idx` | Bit position within byte |
-|---|---|---|
+| --- | --- | --- |
 | `f32` | $\text{idx} \cdot 4$ | Not applicable |
 | `i8` (deferred) | $\text{idx}$ | Not applicable |
 | `T3` | $\lfloor \text{idx} / 4 \rfloor$ | $(\text{idx} \bmod 4) \cdot 2$ |
@@ -162,13 +165,14 @@ TARS supports ternary weights $W \in \{-W_0, 0, +W_0\}$. The design supports a s
 two-phase evolution to prevent future architectural rework.
 
 ### 3.1 Canonical Bit-Packed Ternary (BitNet b1.58 / TQ2_0 Standard)
+
 Each trit is encoded using biased 2-bit unsigned integers ($\text{uint2} = \text{trit} + 1$):
 
 | Trit value | Code (Binary) | Semantics |
 | :---: | :---: | :--- |
 | $-1$ | `00` | Negative weight: subtract activation |
 | $0$ | `01` | Zero: skip (sparsity gating) |
-|$+1$ | `10` | Positive weight: add activation |
+| $+1$ | `10` | Positive weight: add activation |
 | Reserved | `11` | Invalid / padding |
 
 - **Packing Density:** 4 trits per byte (`u8`). Byte index: $\lfloor \text{idx} / 4 \rfloor$. Bit shift: $(\text{idx} \pmod 4) \times 2$.
@@ -178,6 +182,7 @@ Each trit is encoded using biased 2-bit unsigned integers ($\text{uint2} = \text
 - **Reserved Encoding:** The code `11` is an invalid encoding. Reading an element whose code is `11` is a precondition violation and terminates the operation. A ternary buffer allocated by the runtime never contains the reserved code, and a buffer intended to hold zero-valued trits is filled with the code `01` in every bit pair.
 
 ### 3.2 Ternary Affine Evaluation
+
 When evaluating an affine projection with ternary weights, inner products eliminate floating-point multiplications:
 $$y_i = b_i + W_0 \left( \sum_{j \in S_+} a_j - \sum_{j \in S_-} a_j \right)$$
 where $S_+ = \{j \mid w_{ij} = +1\}$ and $S_- = \{j \mid w_{ij} = -1\}$. The scale factor $W_0$ is multiplied once per output accumulation.
@@ -188,6 +193,7 @@ the ternary evaluation above is the specialization that a ternary-aware linear l
 applies to the result of that product.
 
 ### 3.3 I8 Scaling Semantics
+
 The scale held by the `i8` storage is a multiplicative factor. A stored integer $q$
 represents the value $q \cdot \text{scale}$. The scale is a property of the storage
 buffer and is not altered by element access. In the current scope the scale is held
@@ -195,7 +201,8 @@ per tensor; a per-channel scale is a subsequent extension. The `i8` element type
 deferred beyond v0.1.0 (maintainer decision, October 2026).
 
 ### 3.4 Extensibility to Succinct Mask + Sign Vectors (POPCNT)
-The `T3` storage encapsulation guarantees that migrating internally to a Position Bitmap ($N$ bits) plus a Compact Sign Vector ($K$ bits) evaluated via `POPCNT` requires zero changes to the public `Tensor<T>` API, `Linear` layer, or `backward()` routines.
+
+The `T3` storage encapsulation guarantees that migrating internally to a Position Bitmap ($N$ bits) plus a Compact Sign Vector ($K$ bits) evaluated via `POPCNT` requires zero changes to the public `Tensor<T>` API, `Linear` layer, or `backward()` routines
 
 ---
 
@@ -216,7 +223,7 @@ of [`FUTURE_TARGETS.md`](../FUTURE_TARGETS.md): a later device engine replaces k
 implementations, never the method signatures.
 
 | Method Category | Method Signature | Operational Behavior | Status |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | **Constructors** | `new(Storage, Vec<usize>) -> Self` | Wraps storage in canonical C-order strided view at offset 0 | Partial |
 | | `zeros(Vec<usize>) -> Self` (per element type) | Allocates the zeroed buffer of the element's storage | Partial |
 | **Geometry** | `shape(&self) -> &[usize]` | Borrows shape vector | Implemented |
@@ -243,6 +250,7 @@ implementations, never the method signatures.
 | | `from_data(TensorData) -> Self` | Constructs a contiguous tensor from the record; the wire tag and the byte length are validated against the static element type and the shape | Not implemented |
 
 #### 4.0.1 Gap Notes
+
 - `new` does not yet validate the element capacity of the supplied storage against the shape product, as required by Section 2.2, Invariant 5.
 - `zeros` does not yet materialize the ternary fill encoding of Section 3.1 for the `T3` type; the `T3` zero-allocation path belongs to the subsequent phase. The `f32` zeroed allocation exists.
 - Element access exists for implemented element types only. A type without an implemented access path cannot be constructed, so there is no runtime unsupported-variant path; this supersedes the former empty-diagnostic termination of the container-level design.
@@ -253,13 +261,14 @@ implementations, never the method signatures.
 - The full reduction `sum` is implemented and honours the stride vector. It terminates on a rank-zero operand through the logical iteration helper (defect D-06 of the delivery plan) and has no test coverage.
 
 ### 4.1 Preconditions and Error Policy
+
 The tensor core reports precondition violations by terminating the operation with a
 descriptive diagnostic. It does not return a recoverable error value in the current
 delivery phase. A diagnostic is never empty, and a precondition violation is never
 reported as a successful operation.
 
 | Operation | Precondition |
-|---|---|
+| --- | --- |
 | `new` | The element capacity of the storage is at least the shape product (Section 2.2, Invariant 5) |
 | `is_contiguous` | The element type is within the active delivery phase (Section 4.2) |
 | `get`, `set` | The index tuple has one entry per dimension, and each entry is within the corresponding shape extent |
@@ -277,11 +286,12 @@ reported as a successful operation.
 | `from_data` | The wire tag of the record equals the tag of the static element type; the byte length of the record satisfies the element capacity of Section 2.2, Invariant 5, for the shape |
 
 ### 4.2 Delivery Phases
+
 The minimum viable surface of this section is delivered incrementally. The phases
 below partition the surface and state the exit condition of each.
 
 | Phase | Scope | Exit Condition |
-|---|---|---|
+| --- | --- | --- |
 | **Current: `f32` core** | Constructors, geometry accessors, element access over `f32`, the axis swap in both variants, `contiguous`, the element-wise kernels (`add`, `sub`, `mul_scalar`, `div_scalar`, `map`), `sum`, the products `matmul`, `matvec`, `outer` over `f32`, and the data-transfer surface of Section 2.1 (`into_data`, `from_data`) | Every operation of the phase satisfies Section 4.1 and is covered by the tensor test suite |
 | **Subsequent: `T3` element type** | The `T3` implementation block: packing and unpacking (Section 3.1), the dequantizing read, the ternary fast path of Section 3.2 (the mixed matmul of activations by ternary weights), and the alignment constraint of Section 2.2, Invariant 7. The `i8` element type and the scaling of Section 3.3 are deferred beyond v0.1.0 (maintainer decision, October 2026) | `T3` round trips and dequantized values are covered by the tensor test suite |
 | **Deferred** | Reductions along arbitrary axes, `mean`, `slice`, `permute`, `reshape`, and multidimensional broadcasting | Each deferred operation receives its own contract in this specification before implementation |
