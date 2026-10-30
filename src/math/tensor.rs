@@ -48,6 +48,7 @@ where
         + Element,
 {
     pub fn new(data: Vec<T>, shape: Vec<usize>) -> Self {
+        assert!(data.len() == shape.iter().sum());
         Self::from(data, shape, 0)
     }
 
@@ -67,7 +68,7 @@ where
         Self::from(data, shape, 0)
     }
 
-    fn contiguous_strides(shape: &[usize]) -> Vec<usize> {
+    pub fn contiguous_strides(shape: &[usize]) -> Vec<usize> {
         let mut strides = vec![0; shape.len()];
         let mut actual_stride = 1;
         for i in (0..shape.len()).rev() {
@@ -95,12 +96,12 @@ where
     }
 
     pub fn get(&self, index: &[usize]) -> T {
-        let idx = self.storage_index(index);
+        let idx = self.storage_idx(index);
         self.storage[idx].clone()
     }
 
     pub fn set(&mut self, index: &[usize], value: T) {
-        let idx = self.storage_index(index);
+        let idx = self.storage_idx(index);
         let storage = Arc::make_mut(&mut self.storage);
         storage[idx] = value;
     }
@@ -326,7 +327,7 @@ where
         }
     }
 
-    fn storage_index(&self, indices: &[usize]) -> usize {
+    fn storage_idx(&self, indices: &[usize]) -> usize {
         assert_eq!(
             indices.len(),
             self.shape.len(),
