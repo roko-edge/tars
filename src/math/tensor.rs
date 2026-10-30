@@ -127,7 +127,7 @@ where
     pub fn is_contiguous(&self) -> bool {
         self.strides == Self::contiguous_strides(&self.shape)
             && self.offset == 0
-            && self.storage.len() != 0
+            && !self.storage.is_empty()
     }
 
     // pub fn dtype(&self) -> DType {

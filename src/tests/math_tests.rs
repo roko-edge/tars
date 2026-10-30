@@ -1,5 +1,3 @@
-use std::env::var;
-
 use crate::math::*;
 
 // The highest precision we've got was:
