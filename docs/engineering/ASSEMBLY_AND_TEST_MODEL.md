@@ -19,7 +19,7 @@ when a network needs a new kind of computation (a new engine) or different sizin
 |---|---|---|---|
 | 0 — Primitives | `npu_pkg.sv`, `t3_dec.sv`, `pe.sv`, `epilogue.sv` | `npu/src/`, committed | Frozen contracts; change only with a golden-vector regression |
 | 1 — Engines | `layer_engine.sv` (dense ternary, `mode = 1`); future `sparse_frontend` (`mode = 2`), convolution or im2col engines | `npu/src/`, committed | One engine per computation type; every engine obeys the contract of Section 2 |
-| 2 — Per-network top | Sequencer, program memory, activation banks, memory interface, board glue | Top sequencer: not implemented (LOG-007 Steps 3–4); board lab: `npu/synthesis/`, git-ignored | Per network: program data and elaboration parameters only |
+| 2 — Per-network top | `npu.sv` (manual two-engine wrapper, committed); sequencer, program memory, activation banks, memory interface (not implemented, LOG-007 Steps 3–4); board glue (`npu/synthesis/`, git-ignored) | Wrapper: `npu/src/npu.sv`; sequencer: pending; board lab: git-ignored | Per network: program data and elaboration parameters only |
 
 The three layers are the operational form of the three specialization degrees of
 [`NPU_SPECIALIZATION_PROPOSAL.md`](NPU_SPECIALIZATION_PROPOSAL.md), Section 1:
@@ -38,7 +38,7 @@ separate project, not a block.
 |---|---|---|
 | Configuration | Input/output dimensions, per-layer scale `w0`, activation selector, `mode` | Layer descriptor fields (four-word descriptor, Section 7.1); runtime shape registers are LOG-007 Step 2 |
 | Streams | Packed weight codes, activations, bias | Memory artifacts (`wt.mem`, `w0.mem`, `bias.mem`) delivered by the top memory interface |
-| Handshake | `start` / `done` with the sequencer | Single protocol across engines; `layer_engine.sv` implements the elaboration-parameter form today |
+| Handshake | `start` / `done` with the sequencer | Single protocol across engines; `done` is a one-cycle registered pulse, `start` is sampled only in `IDLE` (contract recorded in [`ARCHITECTURE.md`](ARCHITECTURE.md), *Handshake contract*); `layer_engine.sv` implements the elaboration-parameter form today |
 | Internals | Instances of Layer 0 primitives | An engine never reimplements decode, accumulate, or epilogue arithmetic |
 
 `npu_pkg.sv` is the shared type book (`activation_t`, `state_t`, the Q8.24
@@ -78,8 +78,9 @@ in the current phase is manual composition of the reference blocks.
 
 Current state: the board lab under `npu/synthesis/` is git-ignored
 ([`BOARD_INTEGRATION.md`](BOARD_INTEGRATION.md), Section 1); the versioned tree
-contains only the generic core and its simulation flow. The multi-layer top of
-LOG-007 Steps 3–4 does not exist yet.
+contains only the generic core and its simulation flow. The manual wrapper
+`npu.sv` (two chained engines) exists; the programmable multi-layer top of
+LOG-007 Steps 3–4 (sequencer, program memory, banks) does not exist yet.
 
 Target policy recorded by this proposal:
 
@@ -123,7 +124,7 @@ flow, and reset during execution.
 | Target | Tier | State |
 |---|---|---|
 | `test` (alias of `sim`) | ① | Implemented; propagates the testbench exit code once assertions exist |
-| `lint` | ① | Implemented; `verilator --lint-only -Wall`, exits zero |
+| `lint` | ① | Implemented; `verilator --lint-only -Wall --top-module npu`, exits zero; covers wrapper, engines, and primitives |
 | `vectors` | ② input | Not implemented; requires the Step 1 exporter |
 | `test-parity` | ② | Not implemented |
 | `sim-shell` | ③ | Not implemented; requires the Step 3–4 top |
