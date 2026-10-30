@@ -1,7 +1,0 @@
--v /home/arthur/Documents/Projects/roko-edge/tars/npu/src/npu_pkg.sv
-+incdir+/home/arthur/Documents/Projects/roko-edge/tars/npu/src
-+incdir+/home/arthur/Documents/Projects/roko-edge/tars/npu/synthesis
-+incdir+/home/arthur/Documents/Projects/roko-edge/tars/npu/tests
-+incdir+/home/arthur/Documents/Projects/roko-edge/tars/npu/src
-+incdir+/home/arthur/Documents/Projects/roko-edge/tars/npu/synthesis
-+incdir+/home/arthur/Documents/Projects/roko-edge/tars/npu/tests
