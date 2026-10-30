@@ -37,6 +37,7 @@ The default parameters shape the MNIST release network ($784 \to 64 \to 10$),
 but the topology is configuration, not code: dimensions are elaboration
 parameters and the weights, biases, and per-layer $W_0$ arrive over ports. A
 different MLP is the same file with different parameters. Layer 1 is started
+
 by the `done` pulse of layer 0 — the `start`/`done` events of
 [`PROTOCOL.md`](../docs/engineering/PROTOCOL.md) chain layers exactly once.
 

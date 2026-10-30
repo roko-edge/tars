@@ -5,3 +5,4 @@ src/t3_dec.sv
 src/pe.sv
 src/epilogue.sv
 src/layer_engine.sv
+src/npu.sv

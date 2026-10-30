@@ -19,6 +19,7 @@ module npu
     output logic signed [31:0] result[OUT],
     output logic done
 );
+
   logic signed [31:0] l0_result[H];
   logic l0_done;
 
@@ -28,7 +29,7 @@ module npu
   ) u_l0 (
       .clk,
       .rst,
-      .start,
+      .start(start && state == IDLE),
       .w(l0_w),
       .a,
       .w0(l0_w0),
@@ -52,4 +53,20 @@ module npu
       .result(result),
       .done(done)
   );
+
+  npu_pkg::state_t state;
+  always_ff @(posedge clk or posedge rst) begin
+    if (rst) begin
+      state <= npu_pkg::IDLE;
+    end else begin
+      if (start && state == npu_pkg::IDLE) begin
+        state <= npu_pkg::RUN;
+      end else begin
+        if (state == npu_pkg::RUN && done) begin
+          state <= npu_pkg::IDLE;
+        end
+      end
+
+    end
+  end
 endmodule
