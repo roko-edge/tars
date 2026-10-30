@@ -46,8 +46,9 @@ wave: sim
 	@$(RUN) gtkwave $(BUILD_DIR)/dump.vcd
 
 # Gate de qualidade do RTL: -Wall sem supressões de WIDTH*; tem de sair limpo.
+# Topo de lint = npu (cobre wrapper + engines + primitivos inteiros).
 lint:
-	@$(RUN) verilator --lint-only -Wall --top-module layer_engine -f $(FILELIST)
+	@$(RUN) verilator --lint-only -Wall --top-module npu -f $(FILELIST)
 
 clean:
 	@rm -rf $(BUILD_DIR)

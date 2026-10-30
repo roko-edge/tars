@@ -1,66 +1,138 @@
-# AGENTS.md - AI Agent Policy
+# AGENTS.md — Automation & Git Policy
 
-## 1. Scope and Human Ownership
+**Status:** [DECIDIDO] by the repository owner (2026-10-28). Effective on commit.
+**Scope:** this repository. The former "human-only code and commits" rule is
+superseded **here**; human-only remains in force for measured data and academic
+text (see tars-research/AGENTS.md — that divergence is intentional).
 
-Core library architecture, NPU designs, and source code implementations are strictly owned by the human maintainer.
+---
 
-AI agents may read protected files to understand system context and contracts, but must not modify, delete, rename, overwrite, or change their permissions.
+## 1. What agents may do here
 
-This policy file (`AGENTS.md`) is also strictly protected and must not be altered by agents.
+Agents may edit code (`.rs`, `.sv`), docs (`docs/`, `**/README.md`), and build
+files (`Makefile`, `files.f`, `.gitignore`, CI), and may run the git workflow
+**within the limits of §2**. Agents never push to `main`, never rewrite history,
+and never touch `AUTHORS`, `LICENSE`, `CITATION*`, or generated artifacts.
 
-## 2. File Classification and Access Matrix
+## 2. Git operations — allowlist (not listed = ask first)
 
-File permissions are governed by repository domain and file type rather than general Git tracking status:
+**Read-only (anytime):** `git status` · `git diff` · `git log` · `git show` ·
+`git fetch` · `git branch --show-current`
 
-### Strictly Protected (Read-Only)
-- **Directories:** `lib/` and `npu/` (including all subdirectories and files within them).
-- **Source & Hardware Files:** All Rust (`.rs`) and SystemVerilog (`.sv`, `.svh`) files across the entire repository, as well as any other implementation source code or test suites.
-- **Policy Files:** Root and nested `AGENTS.md` files.
+| Operation | Policy |
+|---|---|
+| `checkout -b agent/<type>-<slug>` / `switch` | ✅ `<type>` ∈ feat, fix, docs, test, refactor, build, chore |
+| `add <path>` | ✅ after reviewing `git diff --cached` |
+| `restore --staged <path>` · `git rm --cached <path>` | ✅ `rm --cached` is how generated files leave the index |
+| `git commit` | ✅ on `agent/*` only, format + trailer per §3 |
+| `git revert <sha>` | ✅ recovery = new commits, never rewrites |
+| `git pull --ff-only` · `git stash` / `git stash pop` | ✅ branch upkeep |
+| `git merge origin/main` | ✅ **into `agent/*` only** — never into `main` |
+| `git push -u origin agent/<name>` | ✅ never `--force`. **Push is publication** — the repo is public and branches are not private: run the §4 scan before pushing, not only before committing |
+| push to `main` · merge/rebase **into** `main` | ❌ human only (branch protection) |
+| `push --force` / `--all` / `--tags` · `reset --hard` · `clean -fd` | ❌ never |
+| `commit --amend` · rebase of pushed branches · `tag`/`release` · branch deletion | ❌ human only |
+| `git config`, credentials, hooks, submodules | ❌ never |
+| anything not listed above | ❌ ask first |
 
-### Editable (Write-Permitted Within Task Scope)
-- **Build & Infrastructure:** `Makefile`, build scripts, CI/CD pipelines, container definitions, and infrastructure configuration files.
-- **Documentation:** Files within `docs/`, provided all edits strictly adhere to Sections 5 and 6.
-- **Untracked / Temporary Files:** Allowed only when explicitly requested by the maintainer and outside protected paths.
+## 3. Commit protocol
 
-Agents must verify the target path and file extension before making any change. If a file's classification is uncertain, the agent must stop and ask the maintainer.
+- **One logical change per commit.** Tests with the code; docs in the same
+  revision whenever the Invariant-4 trio (docs / exporter / RTL) moves together.
+- **Workflow order:** `add` → review `git diff --cached` → `commit` → final
+  review of the series → `push`.
+- **Message format** — the body explains *why*; the diff already shows *what*.
+  Template and example (indent as shown in the commit editor):
 
-## 3. Permitted and Prohibited Actions
+        <type>(<scope>): <imperative summary, max 72 chars>
 
-Agents may inspect the entire repository, analyze code in `lib/` and `npu/`, and report findings without editing protected files.
+        <why this changed — reasoning, contract references, trade-offs>
 
-Agents must not use `Makefile` targets, build scripts, code generators, symlinks, or alternate paths to indirectly overwrite, format, or mutate `.rs`, `.sv`, `lib/`, or `npu/` files.
+        Assisted-By: <agent-name>
 
-Every operation must respect the protection of its actual targets, including indirect writes and generated output.
+  Example of a complete message:
 
-Write access to infrastructure and build files does not authorize exposing secrets, weakening security controls, or modifying host system configurations outside the repository.
+        fix(epilogue): correct saturation polarity in safe_*_to_32
 
-Hardware programming, FPGA/NPU flashing, privileged changes, and external side effects require explicit maintainer authorization.
+        The sign-bit branches returned MAX for negative overflow and MIN for
+        positive. Aligns the RTL with the two-saturation contract (LOG-007 §2.2).
 
-## 4. Git and Commit Authorship
+        Assisted-By: MiMo
 
-Agents must not stage files, create commits, alter `.gitignore` to bypass path restrictions, or publish changes.
-Commit messages are written exclusively by the human author.
-Agents may review spelling or grammar only upon explicit request.
+  `<type>` ∈ feat, fix, docs, test, refactor, build, chore.
+- **Attribution is mandatory**: the git author is the human running `git commit`;
+  the `Assisted-By:` trailer (or `Co-Authored-By:`) names the agent that prepared
+  the change. **Neither field may ever be empty** — this is how the repository
+  records who did what.
+- **Never commit generated artifacts** — `obj_dir/`, `build/`, `*.bit`, `*.vcd`,
+  Vivado projects, generated `*.mem`, `tests/vectors/`, editor/LSP state
+  (`.nvim/`, `.vscode/` workspace indexes). If one is tracked, `git rm --cached`
+  and extend `.gitignore`.
 
-## 5. Documentation Standards
+## 4. Checklist — before every commit AND before every push
 
-Agents are authorized to create and update documentation within `docs/`, provided they strictly follow these rules:
+1. `git diff --cached` matches the message exactly — no drive-by changes.
+2. **Leak scan:** no credentials/tokens/keys; no internal URLs or hostnames; no
+   client names, pricing, or commercial strategy; no content copied from other
+   repositories; no proprietary engine internals. Any doubt → stop and ask.
+3. **Litmus:** *would a competitor with a good LLM gain meaningful time reading
+   this diff or message?* If yes → stop and ask.
+4. **Gates green** for the area touched (there is **no root Makefile**):
 
-- Use a formal, objective technical tone without emojis, greetings, praise, or conversational filler.
-- Specify purpose, contracts, architecture, and rationale.
-- Do not include complete implementation bodies or ready-made algorithms in documentation.
-- Ensure each documentation directory provides a `README.md` entry point.
-- Prefer consolidated specifications over fragmented documents.
+   | Area | Gate |
+   |---|---|
+   | Rust (`*.rs`) | `cargo test` |
+   | RTL (`npu/`) | `make -C npu lint` and `make -C npu test` |
+   | Docs / build files | checklist only |
 
-## 6. Documentation Organization
+5. **Atomic:** two unrelated concerns in one diff → split before committing.
 
-All documentation modifications must respect the following directory structure:
+## 5. Authorship & integrity
 
-- `docs/`: user documentation for implemented library features.
-- `docs/engineering/`: architecture, contracts, and technical proposals.
-- `docs/project/`: planning, status, research, and communication.
+- **Every commit carries attribution** (git author = human; `Assisted-By` trailer
+  = agent). Never forge authorship, never remove existing trailers.
+- `AUTHORS`, `LICENSE`, `CITATION*`: human-only, never edited by agents.
+- Never fabricate metrics, results, or experiment data. Numbers require a real
+  run: CSV + seed + reproducible command.
+- Keep the `Assisted-By` trail on everything you touch — AI-assistance
+  disclosure is part of the project's academic integrity policy.
 
-## 7. Local Instructions
+## 6. Project layout
 
-Nested `AGENTS.md` files may impose additional restrictions within specific subdirectories.
-They must not relax the protection of `lib/`, `npu/`, `.rs`, or `.sv` files.
+**On disk today:**
+
+    npu/src/        RTL core: npu_pkg, t3_dec, pe, epilogue, layer_engine, npu wrapper
+    npu/tests/      testbenches (currently tb.sv)
+    npu/synthesis/  board-only (Urbana) — currently untracked [PENDENTE: versioning]
+    npu/data/       generated *.mem — never commit
+    docs/           one decision, one home; status labels on every decision
+
+**Target test model [PROPOSTO]** — tiers, not files that exist yet:
+① `tb_core` self-checking (every commit) · ② `tb_parity` against golden vectors
+from the Rust exporter · ③ `tb_shell` system-level. Do not claim these exist
+until they land.
+
+- `files.f`: `npu_pkg.sv` **always first**.
+- Docs: English; conclusion first; question-style headings; tables over prose;
+  labels `[DECIDIDO]` / `[PENDENTE]` / `[PROPOSTO]` / `[CONFLITO]`.
+- Contradictions between docs and code → mark `[CONFLITO]` and report. Never
+  resolve silently (Invariant 4: docs, exporter and RTL move together).
+
+## 7. Who edits what
+
+| Target | Policy |
+|---|---|
+| `docs/`, `**/README.md`, code, build files | agents (per §1) |
+| **This file (`AGENTS.md`)** | **human commit only** — agents may draft changes, but need explicit approval before staging |
+| `.gitignore` | agents may **add generated paths**; never edit it to hide artifacts from the "never commit" rules or to bypass this policy |
+| `AUTHORS`, `LICENSE`, `CITATION*` | human only |
+
+## 8. Escalation — stop and ask when
+
+- a change touches the format contract (`.mem`, descriptor, golden vectors)
+  without the matching docs/RTL revision;
+- §4.2/§4.3 raise any doubt about leakage;
+- a git operation is not explicitly allowed in §2;
+- a task seems to reference another repository's internals.
+
+A stopped commit costs minutes. A leaked one costs the project. Report — don't improvise.
