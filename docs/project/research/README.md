@@ -27,6 +27,7 @@ Supporting analyses:
 
 | Document | Scope | State |
 |---|---|---|
+| [`TENSOR_THEORY.md`](TENSOR_THEORY.md) | Dense strided tensor theory: storage, shape, strides, offset, views, contiguity, ownership, and packed elements | Theoretical reference; not an implementation or benchmark report |
 | [`Glorot_Bengio_2010_Summary.md`](Glorot_Bengio_2010_Summary.md) | Summary of Glorot and Bengio (2010) and its relation to the TARS initialization functions | Complete |
 | [`Xavier_Analysis.md`](Xavier_Analysis.md) | Notes on weight initialization | One-line draft stub |
 
