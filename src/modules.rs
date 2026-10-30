@@ -1,12 +1,13 @@
 pub mod activations;
 pub mod linear;
 pub mod sequential;
+pub use crate::Tensor;
 pub use activations::*;
 pub use linear::*;
 pub use sequential::*;
 
 pub trait Module {
-    fn forward(&self, input: &[f32]) -> Vec<f32>;
+    fn forward(&self, input: &Tensor) -> Tensor;
 }
 
 #[derive(Clone, Debug)]
@@ -32,7 +33,7 @@ impl AnyModule {
 }
 
 impl Module for AnyModule {
-    fn forward(&self, input: &[f32]) -> Vec<f32> {
+    fn forward(&self, input: &Tensor) -> Tensor {
         match self {
             AnyModule::Linear(linear) => linear.forward(input),
             AnyModule::Activation(activation) => activation.forward(input),
