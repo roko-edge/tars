@@ -78,7 +78,7 @@ where
     }
 
     pub fn step_logical(shape: &Vec<usize>, v: &mut Vec<usize>) {
-        assert_eq!(shape.len(), 0, "Vector size can't be zero");
+        assert!(!shape.is_empty(), "vector can't be empty");
 
         v[shape.len() - 1] += 1;
 
