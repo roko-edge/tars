@@ -409,4 +409,14 @@ impl Tensor {
         }
         out
     }
+    fn add_bias(&mut self, bias: &[f32]) {
+        let b = self.shape[0];
+        let out = self.shape[1];
+        for i in 0..b {
+            for j in 0..out {
+                let val = self.get(&[i, j]) + bias[j];
+                self.set(&[i, j], val);
+            }
+        }
+    }
 }
