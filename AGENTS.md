@@ -1,18 +1,30 @@
 # AGENTS.md — Automation & Git Policy
 
-**Status:** [DECIDIDO] by the repository owner (2026-10-28). Effective on commit.
-**Scope:** this repository. The former "human-only code and commits" rule is
-superseded **here**; human-only remains in force for measured data and academic
+**Status:** [DECIDIDO] by the repository owner (2026-10-28; **amended 2026-10-30**).
+Effective on commit. The 2026-10-30 amendment restores strict human ownership of
+all code: agents never edit code files.
+**Scope:** this repository. Human-only: all code (§1), measured data and academic
 text (see tars-research/AGENTS.md — that divergence is intentional).
 
 ---
 
 ## 1. What agents may do here
 
-Agents may edit code (`.rs`, `.sv`), docs (`docs/`, `**/README.md`), and build
-files (`Makefile`, `files.f`, `.gitignore`, CI), and may run the git workflow
-**within the limits of §2**. Agents never push to `main`, never rewrite history,
-and never touch `AUTHORS`, `LICENSE`, `CITATION*`, or generated artifacts.
+Agents may edit docs (`docs/`, `**/README.md`) and build files (`Makefile`,
+`files.f`, `.gitignore`, CI), and may run the git workflow **within the limits
+of §2**.
+
+**Code is strictly human-owned.** All `.rs`, `.sv`, `.svh` files and testbenches
+are edited by humans only. Agents **never** edit, generate, format, refactor, or
+stage code files — directly **or indirectly** (formatters, code generators,
+scripts, symlinks, or alternate paths that write into code files are equally
+forbidden). When asked to write or change code, the agent produces the proposed
+diff **in chat** and the human applies and commits it. Reading and analyzing
+code remains allowed and encouraged — proposals, diagnostics, and reviews in
+chat are exactly the agent's job.
+
+Agents never push to `main`, never rewrite history, and never touch `AUTHORS`,
+`LICENSE`, `CITATION*`, or generated artifacts.
 
 ## 2. Git operations — allowlist (not listed = ask first)
 
@@ -22,9 +34,9 @@ and never touch `AUTHORS`, `LICENSE`, `CITATION*`, or generated artifacts.
 | Operation | Policy |
 |---|---|
 | `checkout -b agent/<type>-<slug>` / `switch` | ✅ `<type>` ∈ feat, fix, docs, test, refactor, build, chore |
-| `add <path>` | ✅ after reviewing `git diff --cached` |
-| `restore --staged <path>` · `git rm --cached <path>` | ✅ `rm --cached` is how generated files leave the index |
-| `git commit` | ✅ on `agent/*` only, format + trailer per §3 |
+| `add <path>` | ✅ after reviewing `git diff --cached` — **never for code files** (`.rs`, `.sv`, `.svh`); staging code is human-only |
+| `restore --staged <path>` · `git rm --cached <path>` | ✅ `rm --cached` is how generated files leave the index; code files are still human-only |
+| `git commit` | ✅ on `agent/*` only, **for files within agent write scope (docs, build)**. A commit staging code = human only. Format + trailer per §3 |
 | `git revert <sha>` | ✅ recovery = new commits, never rewrites |
 | `git pull --ff-only` · `git stash` / `git stash pop` | ✅ branch upkeep |
 | `git merge origin/main` | ✅ **into `agent/*` only** — never into `main` |
@@ -52,18 +64,21 @@ and never touch `AUTHORS`, `LICENSE`, `CITATION*`, or generated artifacts.
 
   Example of a complete message:
 
-        fix(epilogue): correct saturation polarity in safe_*_to_32
+        docs(protocol): add start/done protocol contract
 
-        The sign-bit branches returned MAX for negative overflow and MIN for
-        positive. Aligns the RTL with the two-saturation contract (LOG-007 §2.2).
+        Seven normative clauses for the engine/wrapper handshake; owns what
+        ARCHITECTURE.md previously implied inline.
 
         Assisted-By: MiMo
 
   `<type>` ∈ feat, fix, docs, test, refactor, build, chore.
 - **Attribution is mandatory**: the git author is the human running `git commit`;
   the `Assisted-By:` trailer (or `Co-Authored-By:`) names the agent that prepared
-  the change. **Neither field may ever be empty** — this is how the repository
-  records who did what.
+  the change. **Neither field may ever be empty** on agent-prepared commits.
+- **Code commits are human-authored.** When a code change originated from an
+  agent-proposed diff (in chat) and the human applied it, the commit message
+  carries `Assisted-By:` — assistance is disclosed; authorship stays human.
+  A code commit never claims sole human origin when an agent produced the change.
 - **Never commit generated artifacts** — `obj_dir/`, `build/`, `*.bit`, `*.vcd`,
   Vivado projects, generated `*.mem`, `tests/vectors/`, editor/LSP state
   (`.nvim/`, `.vscode/` workspace indexes). If one is tracked, `git rm --cached`
@@ -81,14 +96,16 @@ and never touch `AUTHORS`, `LICENSE`, `CITATION*`, or generated artifacts.
 
    | Area | Gate |
    |---|---|
-   | Rust (`*.rs`) | `cargo test` |
-   | RTL (`npu/`) | `make -C npu lint` and `make -C npu test` |
+   | Rust (`*.rs`) | `cargo test` (human runs; agents may read results) |
+   | RTL (`npu/`) | `make -C npu lint` and `make -C npu test` (human runs) |
    | Docs / build files | checklist only |
 
 5. **Atomic:** two unrelated concerns in one diff → split before committing.
 
 ## 5. Authorship & integrity
 
+- **Code is written by human hands.** Agents assist by proposing diffs in chat,
+  diagnosing, and reviewing — never by writing code into the repository.
 - **Every commit carries attribution** (git author = human; `Assisted-By` trailer
   = agent). Never forge authorship, never remove existing trailers.
 - `AUTHORS`, `LICENSE`, `CITATION*`: human-only, never edited by agents.
@@ -122,13 +139,16 @@ until they land.
 
 | Target | Policy |
 |---|---|
-| `docs/`, `**/README.md`, code, build files | agents (per §1) |
+| **Code: `.rs`, `.sv`, `.svh`, testbenches** | **human only** — agents propose diffs in chat; never edit, generate, format, or stage |
+| `docs/`, `**/README.md`, build files | agents (per §1) |
 | **This file (`AGENTS.md`)** | **human commit only** — agents may draft changes, but need explicit approval before staging |
 | `.gitignore` | agents may **add generated paths**; never edit it to hide artifacts from the "never commit" rules or to bypass this policy |
 | `AUTHORS`, `LICENSE`, `CITATION*` | human only |
 
 ## 8. Escalation — stop and ask when
 
+- **asked to edit, generate, or format a code file** → the answer is a proposed
+  diff in chat, never a write;
 - a change touches the format contract (`.mem`, descriptor, golden vectors)
   without the matching docs/RTL revision;
 - §4.2/§4.3 raise any doubt about leakage;
