@@ -37,15 +37,19 @@ The default parameters shape the MNIST release network ($784 \to 64 \to 10$),
 but the topology is configuration, not code: dimensions are elaboration
 parameters and the weights, biases, and per-layer $W_0$ arrive over ports. A
 different MLP is the same file with different parameters. Layer 1 is started
-by the `done` pulse of layer 0 — the `start`/`done` handshake of
-[`ARCHITECTURE.md`](../docs/engineering/ARCHITECTURE.md), *Handshake
-contract*, chains layers exactly once.
+
+by the `done` pulse of layer 0 — the `start`/`done` events of
+[`PROTOCOL.md`](../docs/engineering/PROTOCOL.md) chain layers exactly once.
 
 This wrapper is the manual-composition reference of Layer 2 in
 [`ASSEMBLY_AND_TEST_MODEL.md`](../docs/engineering/ASSEMBLY_AND_TEST_MODEL.md),
 Section 1. It does **not** contain the sequencer, program memory, or
 activation banks of the programmable top; those arrive with LOG-007 Steps 3–4
 and will replace the hand-wired chain, not the engines.
+
+**Protocol.** `start` and `done` are events (one-cycle pulses); the wrapper
+arbitrates requests while data is in flight. See
+[`PROTOCOL.md`](../docs/engineering/PROTOCOL.md).
 
 ## Interface and Arithmetic
 

@@ -8,6 +8,19 @@ presence in this repository does not imply that a feature is available.
 
 ---
 
+## Where to Start
+
+Pick the path that matches your role; each is an ordered reading list, not a
+requirement to read everything.
+
+| If you are… | Read in this order |
+|---|---|
+| New to the project | [`GETTING_STARTED.md`](GETTING_STARTED.md) (environment and commands) → [`../npu/README.md`](../npu/README.md) (what the NPU is) → [`project/STATUS.md`](project/STATUS.md) (where things stand) |
+| Going to touch the RTL | [`../npu/README.md`](../npu/README.md) → [`engineering/ARCHITECTURE.md`](engineering/ARCHITECTURE.md) (glossary and handshake contract) → [`engineering/specs/ARITHMETIC_Q8_24.md`](engineering/specs/ARITHMETIC_Q8_24.md) → [`project/research/LOG-007-v0_execution_mode_phasing.md`](project/research/LOG-007-v0_execution_mode_phasing.md) (decisions and steps) |
+| Going to touch the Rust side or the file formats | [`engineering/MEM_FORMAT.md`](engineering/MEM_FORMAT.md) → [`project/V0_CONTRACT.md`](project/V0_CONTRACT.md) (release criteria) → [`project/ROADMAP.md`](project/ROADMAP.md) (ownership and gates) |
+
+---
+
 ## Navigation by Task
 
 | Objective | Document | Scope |
