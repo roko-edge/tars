@@ -48,7 +48,7 @@ where
         + Element,
 {
     pub fn new(data: Vec<T>, shape: Vec<usize>) -> Self {
-        assert!(data.len() == shape.iter().sum());
+        assert!(data.len() == shape.iter().product());
         Self::from(data, shape, 0)
     }
 
@@ -327,7 +327,7 @@ where
         }
     }
 
-    fn storage_idx(&self, indices: &[usize]) -> usize {
+    pub fn storage_idx(&self, indices: &[usize]) -> usize {
         assert_eq!(
             indices.len(),
             self.shape.len(),
