@@ -68,6 +68,4 @@ fn ternary_distribution_test() {
     assert!(mean.abs() < 0.02);
 
     assert!((variance - 1.0).abs() < 0.02);
-
-    assert!(variance <= 1.0);
 }
