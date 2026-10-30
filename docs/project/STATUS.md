@@ -7,6 +7,21 @@ This document reflects the current state of the repository as of October 2026.
 
 ---
 
+## State in Ten Lines
+
+1. The Rust package trains small MLPs (OR/XOR) with `f32` and analytical backprop; the tensor core is mid-migration and its suite is not deterministic yet.
+2. The NPU release engine is **dense ternary**: 2-bit weights, conditional add/subtract, a 64-bit accumulator, and a per-neuron $W_0$ epilogue (96-bit product, floor shift, two saturations).
+3. The ternary encoding is $v = b_0 - b_1$; all four 2-bit codes are valid. Signed off by the maintainer in October 2026.
+4. RTL is organised in three layers: primitives (`t3_dec`, `pe`, `epilogue`), the single-layer engine (`layer_engine`), and a per-network wrapper (`npu.sv`, 784→64→10 by default).
+5. `make lint` (top `npu`) exits zero; `make test` runs the testbench and propagates its exit code.
+6. The testbench prints results but asserts nothing; golden vectors and the Rust bit-exact model are the next gate (LOG-007 Step 1).
+7. The checked-in `npu/data/` files are legacy dense Q8.24; the ternary weight export (`wt.mem`, `w0.mem`) does not exist yet.
+8. The programmable top (sequencer, `program.mem`, ping-pong banks) is not implemented; the wrapper is the manual stand-in.
+9. Release target: MNIST $784 \to 64 \to 10$ bit-exact against the Rust model, ternary accuracy $> 90\%$; tag v0.1.0.
+10. Verification is three-tiered (`tb_core` / `tb_parity` / `tb_shell`); today only the core tier's testbench exists, without assertions.
+
+---
+
 ## Rust Package
 
 | Component | Status | Implementation Details |
@@ -40,9 +55,10 @@ The package exports a `view` module backed by `petgraph`. `NetGraph::network_to_
 | Ternary Decode | Implemented | `t3_dec.sv` in `npu/src/` decodes the 2-bit dense ternary code $v = b_0 - b_1$ (`w_en = w[1] ^ w[0]`, `w_s = w[1]`); all four codes are valid (`2'b11` is the redundant zero) |
 | Processing Element | Implemented | `pe.sv` in `npu/src/` conditionally adds or subtracts the signed 32-bit Q8.24 activation into a signed 64-bit accumulator; negation is evaluated at 33 bits before extension |
 | Epilogue | Implemented | `epilogue.sv` in `npu/src/` computes the 96-bit $\mathrm{acc} \cdot W_0$ product, the arithmetic shift by 24 (floor), the two saturations, the bias, and the activation (`RELU`; `IDENTITY` fallback) |
-| Layer Engine | Implemented | `layer_engine.sv` in `npu/src/` (successor of the former `npu.sv`): `IDLE`/`RUN`/`WRITE` FSM with `start`/`done`, sequential computation of `OUT` outputs from `IN` activations, linear weight-stream pointer (rule R1), instantiating one `pe` and one `epilogue` |
+| Layer Engine | Implemented | `layer_engine.sv` in `npu/src/`: `IDLE`/`RUN`/`WRITE` FSM, sequential computation of `OUT` outputs from `IN` activations, linear weight-stream pointer (rule R1), instantiating one `pe` and one `epilogue`; `done` is a one-cycle registered pulse |
+| Network Wrapper | Implemented, untested | `npu.sv` in `npu/src/`: two `layer_engine` instances chained (defaults $784 \to 64 \to 10$; layer 0 `RELU`, layer 1 `IDENTITY`); `u_l1.start` driven by `u_l0.done`. Topology is parameters and ports. Compiles under `make lint` (top module); no tier exercises it against golden vectors |
 | Shared Package | Implemented | `npu_pkg.sv` in `npu/src/` declares `activation_t` (`IDENTITY`, `RELU`; `SIGMOID` reserved), `state_t` (`IDLE`, `RUN`, `WRITE`), and the `Q8_24_MAX`/`Q8_24_MIN` constants |
-| Layer Dimensions | Parameterized | Parameters `IN` and `OUT` (testbench instantiates `IN=2`, `OUT=1`); the 16-bit runtime shape registers are Step 2 of LOG-007, Section 4.2 |
+| Layer Dimensions | Parameterized | Elaboration parameters `IN`/`OUT` per engine (testbench instantiates `IN=2`, `OUT=1`; wrapper defaults 784/64/10); the 16-bit runtime shape registers are Step 2 of LOG-007, Section 4.2 |
 | Internal Storage | Refactored | Activation, weight, and bias arrays are explicit top-level ports driven by the testbench (`$readmemh` into testbench-level arrays) |
 | Control Logic | Implemented | `clk`, `rst`, `start`, and `done` handshaking signals |
 | Testbench | Partial | `tests/tb.sv` instantiates `layer_engine`, enables `$dumpfile`/`$dumpvars`, and drives all ports, but lacks automated pass/fail assertions and non-zero exit codes |
@@ -60,7 +76,7 @@ The package exports a `view` module backed by `petgraph`. `NetGraph::network_to_
 | `make sim` (from `npu/`) | Partial | Runs in the sanctioned `hardware` development shell, whose `flake.nix` provides the Python 3 interpreter required by the Verilator `--binary --timing --assert --trace` build. Compiles the RTL list of `files.f` together with `tests/tb.sv`, prints the four legacy evaluations, and dumps waveforms to `build/dump.vcd`. The build tolerates warnings (`-Wno-fatal`); Lacks pass/fail checks in the testbench itself |
 | `make test` / `make all` | Partial | Alias of `sim`; propagates the testbench exit code, so a `$fatal` mismatch fails the target once the testbench is self-checking |
 | `make wave` | Available | Runs GTKWave against `build/dump.vcd` generated from simulation |
-| `make lint` | Available | Runs `verilator --lint-only -Wall --top-module layer_engine -f files.f`; exits zero with no `WIDTHTRUNC`/`WIDTHEXPAND`/`UNDRIVEN` findings. The two `WIDTHEXPAND` findings on the `safe_log(IN)`/`safe_log(OUT)` calls were resolved with explicit `64'` casts (October 2026); verified under Verilator 5.048 and 5.052 |
+| `make lint` | Available | Runs `verilator --lint-only -Wall --top-module npu -f files.f` (top `npu` covers the wrapper, engines, and primitives); exits zero with no `WIDTHTRUNC`/`WIDTHEXPAND`/`UNDRIVEN` findings. The two `WIDTHEXPAND` findings on the `safe_log(IN)`/`safe_log(OUT)` calls were resolved with explicit `64'` casts (October 2026); verified under Verilator 5.048 and 5.052 |
 | `make clean` | Available | Cleans NPU build outputs |
 
 ---

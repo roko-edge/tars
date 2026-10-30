@@ -12,6 +12,13 @@ components, bespoke assembly**: universal, vendor-agnostic engine modules whose
 sizing, selection, and interconnection are derived per network from the hardware
 manifest, with the layer program as the only per-network runtime artifact.
 
+**Scope boundary.** This repository owns the reusable substrate — the engine
+modules, their contracts, and the reference assembly flow. Application-specific
+recipes (industry deployments, custom engine variants, and integration work on
+a particular board or product) are outside the scope of this repository and are
+not planned here; the reference design is the starting point, not a catalogue
+of applications.
+
 ---
 
 ## 1. Model and Degrees of Specialization
