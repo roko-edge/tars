@@ -1,10 +1,12 @@
-use crate::math::{relu, sigmoidf};
+use crate::act_functions::{relu, sigmoidf};
 use crate::modules::Module;
+
 #[derive(Clone, Copy, Debug)]
 pub enum Activation {
     Relu,
     Sigmoid,
 }
+
 impl Module for Activation {
     fn forward(&self, input: &[f32]) -> Vec<f32> {
         let mut output = vec![0.0; input.len()];

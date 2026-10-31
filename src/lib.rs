@@ -4,11 +4,9 @@ pub mod export;
 pub mod math;
 pub mod modules;
 pub mod optim;
+pub mod tensor;
 pub mod train;
 pub mod view;
-
-#[cfg(test)]
-mod tests;
 
 pub use data::*;
 pub use experiments::*;
@@ -16,4 +14,5 @@ pub use export::*;
 pub use math::*;
 pub use modules::*;
 pub use optim::*;
+pub use tensor::*;
 pub use train::*;

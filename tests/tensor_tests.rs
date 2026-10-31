@@ -1,4 +1,4 @@
-use crate::Tensor;
+use tars::tensor_core::Tensor;
 
 #[test]
 fn mul_scalar_test() {

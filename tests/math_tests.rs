@@ -1,13 +1,4 @@
-use crate::math::*;
-
-// The highest precision we've got was:
-// mean => 3 points precision,
-// variation => 8 points precision.
-
-// TODO
-// Those current tests are just checking if the mean is around 0 and the variance is around 1, but
-// they still don't check they specificities. For example, a ternary distribution should only
-// generate -1, 0 or 1, or whatever basis we're using.
+use tars::rng_gen::*;
 
 #[test]
 fn prng_test() {
