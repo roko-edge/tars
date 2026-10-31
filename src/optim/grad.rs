@@ -51,6 +51,8 @@ pub fn backward(model: &Sequential, cache: &ForwardCache, target: &Tensor<f32>) 
             AnyModule::Linear(linear) => {
                 let a_prev = cache.module_input(m);
                 let dw = delta.transpose(0, 1).matmul(a_prev);
+
+                // Fazer: Implementar um método de add entre tensores que suporte as operações [B,out] + [out] para operações com min-batches com o bias, pra ficar só uma linha
                 let mut db = Tensor::zeros(vec![linear.out_sz]);
                 for i in 0..b {
                     for o in 0..linear.out_sz {

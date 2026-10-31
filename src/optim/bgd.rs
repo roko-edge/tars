@@ -1,7 +1,7 @@
-use crate::AnyModule;
 use crate::grad::Grad;
 use crate::sequential::Sequential;
 pub use crate::tensor_core::Tensor;
+use crate::{AnyModule, LinearGrad};
 
 #[derive(Clone, Copy, Debug)]
 pub struct BGD {
@@ -13,24 +13,27 @@ impl BGD {
         Self { lr }
     }
     pub fn step(&self, model: &mut Sequential, grad: &Grad) {
-        for m in 0..model.modules.len() {
-            match &grad.modules[m] {
-                AnyModule::Linear(linear) => {
+        for (module, grad_opt) in model.modules.iter_mut().zip(&grad.modules) {
+            match (module, grad_opt) {
+                (AnyModule::Linear(linear), Some(linear_grad)) => {
                     for o in 0..linear.out_sz {
                         for w in 0..linear.in_sz {
-                            let weight = model.modules[m].as_linear().weights.get(&[o, w])
-                                - grad.modules[m].as_linear().weights.get(&[o, w]) * self.lr;
-                            model.modules[m]
-                                .as_mut_linear()
-                                .weights
-                                .set(&[o, w], weight);
+                            let old_w = linear.weights.get(&[o, w]);
+
+                            linear.weights.set(
+                                &[o, w],
+                                old_w - (linear_grad.weights.get(&[o, w]) * self.lr),
+                            );
                         }
-                        let bias = model.modules[m].as_linear().bias.get(&[o])
-                            - grad.modules[m].as_linear().bias.get(&[o]) * self.lr;
-                        model.modules[m].as_mut_linear().bias.set(&[o], bias);
+
+                        let old_b = linear.bias.get(&[o]);
+
+                        linear
+                            .bias
+                            .set(&[o], old_b - (linear_grad.bias.get(&[o]) * self.lr));
                     }
                 }
-                AnyModule::Activation(_) => {}
+                _ => {}
             }
         }
     }
