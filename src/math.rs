@@ -1,12 +1,5 @@
 use rand::RngExt;
 
-pub mod tensor;
-pub use tensor::*;
-
-pub mod tensor_it;
-
-pub mod float_tensor;
-
 pub fn random_vec(len: usize) -> Vec<f32> {
     let mut vector = vec![0.0; len];
     for e in &mut vector {
@@ -81,7 +74,6 @@ pub fn sigmoidf_deriv_from_a(a: f32) -> f32 {
 pub fn cost_derivative(p: f32, t: f32, out_sz: usize) -> f32 {
     2.0 * (p - t) / (out_sz as f32)
 }
-
 pub fn relu(x: f32) -> f32 {
     if x > 0.0 { x } else { 0.0 }
 }

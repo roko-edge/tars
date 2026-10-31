@@ -1,4 +1,4 @@
-use crate::tensor::*;
+use crate::tensor_core::*;
 
 impl Tensor<f32> {
     pub fn mul_scalar(&self, s: f32) -> Self {
