@@ -3,8 +3,8 @@ use crate::AnyModule;
 use crate::Data;
 use crate::Module;
 use crate::Sequential;
+use crate::act_functions::*;
 use crate::cost;
-use crate::{cost_derivative, relu_deriv_from_z, sigmoidf_deriv_from_a};
 
 #[derive(Clone, Debug)]
 pub struct Grad {

@@ -1,4 +1,4 @@
-use tars::math::*;
+use tars::rng_gen::*;
 
 #[test]
 fn prng_test() {

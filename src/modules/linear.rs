@@ -1,5 +1,5 @@
-pub use crate::math::random_mat;
 use crate::modules::Module;
+pub use crate::rng_gen::random_mat;
 
 #[derive(Clone, Debug)]
 pub struct Linear {
