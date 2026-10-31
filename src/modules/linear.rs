@@ -56,11 +56,31 @@ impl Linear {
 }
 impl Module for Linear {
     fn forward(&self, input: &Tensor<f32>) -> Tensor<f32> {
-        assert_eq!(input.shape().len(), 1, "Forward uses rank 1");
+        let rank = input.shape().len();
 
-        let mut out = self.weights.matvec(input);
-        out.add_mut(&self.bias);
+        match rank {
+            1 => {
+                let mut out = self.weights.matvec(input);
+                out.add_mut(&self.bias);
 
-        out
+                out
+            }
+            2 => {
+                let mut out = input.matmul(&self.weights.transpose(0, 1));
+                let dim1 = out.shape()[0];
+                let dim2 = out.shape()[1];
+
+                for b in 0..dim1 {
+                    for o in 0..dim2 {
+                        let v = out.get(&[b, o]) + self.bias.get(&[o]);
+                        out.set(&[b, o], v);
+                    }
+                }
+                out
+            }
+            _ => {
+                panic!("The rank used is neither 1 or 2");
+            }
+        }
     }
 }
