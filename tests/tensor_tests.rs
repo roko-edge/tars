@@ -214,3 +214,12 @@ fn contiguous_strides_test() {
     let strides = Tensor::<f32>::contiguous_strides(&[2, 3, 4]);
     assert_eq!(strides, &[12, 4, 1]);
 }
+
+// #[test] {
+//     fn ternary_mul_test() {
+//         let t1 = Tensor::<T3>::new(&[1010], &[2, 2]);
+//         let t2 = Tensor::<f32>new(&[1.0, 2.0, 3.0, 4.0], &[2, 2]);
+//         assert_eq!(Tensor::<f32>::matmul(t1, t2).storage().as_slide(), &[1, 2, 3, 4]); // don't know
+//         // yet
+//     }
+// }
