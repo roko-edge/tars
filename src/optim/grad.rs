@@ -1,28 +1,83 @@
 use crate::Activation;
 use crate::AnyModule;
-use crate::Data;
-use crate::Module;
+use crate::ForwardCache;
 use crate::Sequential;
 use crate::act_functions::*;
-use crate::cost;
+use crate::tensor_core::Tensor;
+
+#[derive(Clone, Debug)]
+pub struct LinearGrad {
+    pub weights: Tensor<f32>,
+    pub bias: Tensor<f32>,
+}
 
 #[derive(Clone, Debug)]
 pub struct Grad {
-    pub modules: Vec<AnyModule>,
+    pub modules: Vec<Option<LinearGrad>>,
 }
 
-pub fn forward_memoria(model: &Sequential, input: &[f32]) -> Vec<Vec<f32>> {
-    let mut acts: Vec<Vec<f32>> = vec![input.to_vec()];
-    let mut cur = input.to_vec();
+pub fn backward(model: &Sequential, cache: &ForwardCache, target: &Tensor<f32>) -> Grad {
+    let pred = cache.output();
+    let mut delta = Tensor::zeros(pred.shape().to_vec());
 
-    for mod_ in &model.modules {
-        cur = mod_.forward(&cur);
-        acts.push(cur.clone());
+    let b = pred.shape()[0];
+    let out_sz = pred.shape()[1];
+
+    let mut grad = Grad {
+        modules: model
+            .modules
+            .iter()
+            .map(|m| match m {
+                AnyModule::Linear(l) => Some(LinearGrad {
+                    weights: Tensor::zeros(vec![l.out_sz, l.in_sz]),
+                    bias: Tensor::zeros(vec![l.out_sz]),
+                }),
+                AnyModule::Activation(_) => None,
+            })
+            .collect(),
+    };
+
+    for i in 0..b {
+        for j in 0..out_sz {
+            delta.set(
+                &[i, j],
+                cost_derivative(pred.get(&[i, j]), target.get(&[i, j]), out_sz) / b as f32,
+            );
+        }
     }
 
-    acts
+    for m in (0..model.modules.len()).rev() {
+        match &model.modules[m] {
+            AnyModule::Linear(linear) => {
+                let a_prev = cache.module_input(m);
+                let dw = delta.transpose(0, 1).matmul(a_prev);
+                let mut db = Tensor::zeros(vec![linear.out_sz]);
+                for i in 0..b {
+                    for o in 0..linear.out_sz {
+                        db.set(&[o], db.get(&[o]) + delta.get(&[i, o]));
+                    }
+                }
+                grad.modules[m] = Some(LinearGrad {
+                    weights: dw,
+                    bias: db,
+                });
+                delta = delta.matmul(&linear.weights);
+            }
+
+            AnyModule::Activation(activation) => {
+                let deriv = match activation {
+                    Activation::Relu => cache.module_input(m).map(relu_deriv_from_z),
+                    Activation::Sigmoid => cache.module_output(m).map(sigmoidf_deriv_from_a),
+                };
+                delta = delta.mul(&deriv);
+            }
+        }
+    }
+
+    grad
 }
 
+/*
 pub fn backward(model: &Sequential, data: &[Data]) -> Grad {
     let mut grad = Grad {
         modules: model.modules.clone(),
@@ -31,8 +86,8 @@ pub fn backward(model: &Sequential, data: &[Data]) -> Grad {
     for m in 0..grad.modules.len() {
         match &model.modules[m] {
             AnyModule::Linear(l) => {
-                grad.modules[m].as_mut_linear().weights = vec![vec![0.0; l.in_sz]; l.out_sz];
-                grad.modules[m].as_mut_linear().bias = vec![0.0; l.out_sz];
+                grad.modules[m].as_mut_linear().weights = Tensor::zeros(vec![l.in_sz, l.out_sz]);
+                grad.modules[m].as_mut_linear().bias = Tensor::zeros(vec![l.out_sz]);
             }
 
             AnyModule::Activation(_) => {}
@@ -113,36 +168,4 @@ pub fn backward(model: &Sequential, data: &[Data]) -> Grad {
 
     grad
 }
-
-pub fn num_grad(model: &Sequential, data: &[Data]) -> Grad {
-    let mut temp_model = model.clone();
-    let mut grad = Grad {
-        modules: model.modules.clone(),
-    };
-    let h = 1e-3;
-    for m in 0..model.modules.len() {
-        match &model.modules[m] {
-            AnyModule::Linear(linear) => {
-                for o in 0..linear.out_sz {
-                    for w in 0..linear.in_sz {
-                        temp_model.modules[m].as_mut_linear().weights[o][w] += h;
-                        let costp = cost(&temp_model, data);
-                        temp_model.modules[m].as_mut_linear().weights[o][w] -= 2.0 * h;
-                        let costm = cost(&temp_model, data);
-                        grad.modules[m].as_mut_linear().weights[o][w] = (costp - costm) / (2.0 * h);
-                        temp_model.modules[m].as_mut_linear().weights[o][w] += h;
-                    }
-
-                    temp_model.modules[m].as_mut_linear().bias[o] += h;
-                    let costp = cost(&temp_model, data);
-                    temp_model.modules[m].as_mut_linear().bias[o] -= 2.0 * h;
-                    let costm = cost(&temp_model, data);
-                    grad.modules[m].as_mut_linear().bias[o] = (costp - costm) / (2.0 * h);
-                    temp_model.modules[m].as_mut_linear().bias[o] += h;
-                }
-            }
-            AnyModule::Activation(_) => {}
-        }
-    }
-    grad
-}
+*/
