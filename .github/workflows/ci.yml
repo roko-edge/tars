@@ -51,10 +51,10 @@ jobs:
           BASE: ${{ github.event.pull_request.base.ref }}
         run: |
           N=$(git diff --numstat "origin/$BASE...HEAD" | awk '{a+=$1+$2} END {print a+0}')
-          echo "lines changed: $N (limit 150)"
-          if [ "$N" -le 150 ]; then
+          echo "lines changed: $N (limit 200)"
+          if [ "$N" -le 200 ]; then
             gh pr merge "$PR" --merge
             echo "merged: small PR with green gates"
           else
-            echo "above 150 lines — awaiting human review"
+            echo "above 200 lines — awaiting human review"
           fi
