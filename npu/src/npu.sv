@@ -16,6 +16,9 @@ module npu
     l1_b[OUT],
     l0_w0,
     l1_w0,
+
+    input npu_pkg::activation_t l0_act_fn,
+    l1_act_fn,
     output logic signed [31:0] result[OUT],
     output logic done
 );
@@ -34,7 +37,7 @@ module npu
       .a,
       .w0(l0_w0),
       .b(l0_b),
-      .act_fn(npu_pkg::RELU),
+      .act_fn(l0_act_fn),
       .result(l0_result),
       .done(l0_done)
   );
@@ -49,7 +52,7 @@ module npu
       .a(l0_result),
       .w0(l1_w0),
       .b(l1_b),
-      .act_fn(npu_pkg::IDENTITY),
+      .act_fn(l1_act_fn),
       .result(result),
       .done(done)
   );
