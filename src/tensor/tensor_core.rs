@@ -93,9 +93,7 @@ where
     }
 
     pub fn is_contiguous(&self) -> bool {
-        self.strides == Self::contiguous_strides(&self.shape)
-            && self.offset == 0
-            && !self.storage.is_empty()
+        self.strides == Self::contiguous_strides(&self.shape) && self.offset == 0
     }
 
     pub fn strides(&self) -> &[usize] {
@@ -106,7 +104,6 @@ where
         self.offset
     }
 
-    // Return 1 if there's no element
     pub fn numel(&self) -> usize {
         self.shape.iter().product()
     }
