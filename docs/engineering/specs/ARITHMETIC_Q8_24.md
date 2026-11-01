@@ -5,8 +5,7 @@
 release NPU executes dense ternary weights over the Q8.24 activation substrate;
 the ternary arithmetic and epilogue are specified in
 [`LOG-007`](../../project/research/LOG-007-v0_execution_mode_phasing.md), Section
-2.2 (maintainer sign-off recorded, October 2026; sign-off by the remaining
-intersection owners pending).
+2.2 (confirmed by the maintainer, October 2026; recorded as project standard).
 
 This document specifies the shared numeric contract between the Rust training runtime
 and the SystemVerilog NPU. Compliance is mandatory for bit-exact hardware parity.
@@ -103,7 +102,7 @@ an operand of the 96-bit scale product.
 
 ### 3.3 Ternary Epilogue (Normative)
 
-Per output neuron, with sign-off recorded in
+Per output neuron, conforming to the standard recorded in
 [`LOG-007`](../../project/research/LOG-007-v0_execution_mode_phasing.md),
 Section 2.2:
 

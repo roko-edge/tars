@@ -164,22 +164,22 @@ statement of how the packing of Section 3.1 reaches the byte buffer.
 TARS supports ternary weights $W \in \{-W_0, 0, +W_0\}$. The design supports a standard
 two-phase evolution to prevent future architectural rework.
 
-### 3.1 Canonical Bit-Packed Ternary (BitNet b1.58 / TQ2_0 Standard)
+### 3.1 Canonical Bit-Packed Ternary (Tars Hardware Standard)
 
-Each trit is encoded using biased 2-bit unsigned integers ($\text{uint2} = \text{trit} + 1$):
+Each trit is encoded using the canonical 2-bit identity $v = b_0 - b_1$ ($w = \{b_1, b_0\}$), aligning tensor packing directly with the RTL decode (`t3_dec.sv`) and hardware execution mode (`LOG-007`, Section 2.3):
 
-| Trit value | Code (Binary) | Semantics |
+| Trit value | Code ($b_1 b_0$) | Semantics |
 | :---: | :---: | :--- |
-| $-1$ | `00` | Negative weight: subtract activation |
-| $0$ | `01` | Zero: skip (sparsity gating) |
-| $+1$ | `10` | Positive weight: add activation |
-| Reserved | `11` | Invalid / padding |
+| $0$ | `00` | Canonical zero: skip (inactive) |
+| $+1$ | `01` | Positive weight: add activation ($1 - 0 = +1$) |
+| $-1$ | `10` | Negative weight: subtract activation ($0 - 1 = -1$) |
+| $0$ | `11` | Redundant zero / fail-safe ($1 - 1 = 0$) |
 
 - **Packing Density:** 4 trits per byte (`u8`). Byte index: $\lfloor \text{idx} / 4 \rfloor$. Bit shift: $(\text{idx} \pmod 4) \times 2$.
 - **Memory Compression:** Consumes $2.0$ bits per element ($16\times$ reduction relative to `f32`, $4\times$ relative to `i8`).
 - **Scale Factor:** $W_0 = \frac{1}{mn} \sum_{ij} |W_{ij}|$ is stored per tensor (or per output channel).
-- **Dequantization:** The value represented by a trit code $c$ is $\text{trit}(c) \cdot W_0$, where $W_0$ is the scale held by the storage.
-- **Reserved Encoding:** The code `11` is an invalid encoding. Reading an element whose code is `11` is a precondition violation and terminates the operation. A ternary buffer allocated by the runtime never contains the reserved code, and a buffer intended to hold zero-valued trits is filled with the code `01` in every bit pair.
+- **Dequantization:** The value represented by a trit code $c$ is $\text{trit}(c) \cdot W_0$, where $\text{trit}(c) = (c \ \& \ 1) - ((c \gg 1) \ \& \ 1)$, and $W_0$ is the scale held by the storage.
+- **Canonical Zero & Redundant State:** Canonical zero serialization emits `00`. The code `11` represents an alternate, self-cancelling zero ($1 - 1 = 0$) that decodes as $0$ without error (providing fail-safe decodes on all-ones memory), but zero-allocation buffers are initialized to `00` (`0x00` per byte). Negation is the bitwise complement ($\sim\text{code}$). All four 2-bit codes are valid states.
 
 ### 3.2 Ternary Affine Evaluation
 
