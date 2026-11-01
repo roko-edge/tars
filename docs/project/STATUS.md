@@ -9,16 +9,16 @@ This document reflects the current state of the repository as of October 2026.
 
 ## State in Ten Lines
 
-1. The Rust package trains small MLPs (OR/XOR) with `f32` and analytical backprop; the tensor core is mid-migration and its suite is not deterministic yet.
+1. The Rust package trains small MLPs (OR/XOR) with `f32` and analytical backprop; the tensor core is mid-migration and `cargo test` is currently blocked by an unresolved import in `tensor_tests.rs` (`E0432`).
 2. The NPU release engine is **dense ternary**: 2-bit weights, conditional add/subtract, a 64-bit accumulator, and a per-neuron $W_0$ epilogue (96-bit product, floor shift, two saturations).
-3. The ternary encoding is $v = b_0 - b_1$; all four 2-bit codes are valid. Signed off by the maintainer in October 2026.
+3. The ternary encoding is $v = b_0 - b_1$ ($00=0, 01=+1, 10=-1, 11=0$); all four 2-bit codes are valid. Confirmed by the maintainer in October 2026.
 4. RTL is organised in three layers: primitives (`t3_dec`, `pe`, `epilogue`), the single-layer engine (`layer_engine`), and a per-network wrapper (`npu.sv`, 784→64→10 by default).
-5. `make lint` (top `npu`) exits zero; `make test` runs the testbench and propagates its exit code.
-6. The testbench prints results but asserts nothing; golden vectors and the Rust bit-exact model are the next gate (LOG-007 Step 1).
+5. `make lint` (top `npu`) exits zero; `make test` defaults to `test-core` and executes the Tier 1 self-checking testbench with assertions (`$fatal`).
+6. Tier 1 testbench `tests/tb_core.sv` is implemented and self-checking; golden parity against the Rust bit-exact model (`tb_parity`, Tier 2) is the next gate (LOG-007 Step 1).
 7. The checked-in `npu/data/` files are legacy dense Q8.24; the ternary weight export (`wt.mem`, `w0.mem`) does not exist yet.
 8. The programmable top (sequencer, `program.mem`, ping-pong banks) is not implemented; the wrapper is the manual stand-in.
 9. Release target: MNIST $784 \to 64 \to 10$ bit-exact against the Rust model, ternary accuracy $> 90\%$; tag v0.1.0.
-10. Verification is three-tiered (`tb_core` / `tb_parity` / `tb_shell`); today only the core tier's testbench exists, without assertions.
+10. Verification is three-tiered (`tb_core` / `tb_parity` / `tb_shell`); Tier 1 (`tb_core`) is active and green; Tier 2 (`tb_parity`) awaits the Step 1 exporter.
 
 ---
 
@@ -36,7 +36,7 @@ This document reflects the current state of the repository as of October 2026.
 | Optimizer | Implemented | Batch Gradient Descent (BGD) applying computed gradients |
 | Experiments | Implemented | Built-in OR and XOR experiment factories |
 | Fixed-Point Export | Implemented | `export_model()` and `export_data()` convert values to Q8.24 fixed-point hex files under `npu/data/` (`weights.mem`, `bias.mem`, `activations.mem`, `target.mem`). The training binary's export calls are commented out, so the checked-in files are not overwritten (limitation 5) |
-| Automated Tests | Unstable | `cargo test` compiles; four tests exist and only one exercises `Tensor`. The distribution tests sample the unseeded global generator, and the ternary-distribution test asserts a variance bound at the true value of its distribution, so the suite fails intermittently. The tensor contracts, the module hierarchy, and the optimizer have no coverage |
+| Automated Tests | Blocked | `cargo test` is temporarily blocked by an unresolved import in `src/tests/tensor_tests.rs` (`E0432: unresolved import Storage`). When unblocked, four tests exist and only one exercises `Tensor`. The distribution tests sample the unseeded global generator, and the ternary-distribution test asserts a variance bound at the true value of its distribution, so the suite fails intermittently. The tensor contracts, the module hierarchy, and the optimizer have no coverage |
 
 The Rust implementation uses `f32`, `std`, and dynamically allocated vectors. Analytical backpropagation is present, but operates on nested vectors rather than contiguous tensors.
 
@@ -61,7 +61,8 @@ The package exports a `view` module backed by `petgraph`. `NetGraph::network_to_
 | Layer Dimensions | Parameterized | Elaboration parameters `IN`/`OUT` per engine (testbench instantiates `IN=2`, `OUT=1`; wrapper defaults 784/64/10); the 16-bit runtime shape registers are Step 2 of LOG-007, Section 4.2 |
 | Internal Storage | Refactored | Activation, weight, and bias arrays are explicit top-level ports driven by the testbench (`$readmemh` into testbench-level arrays) |
 | Control Logic | Implemented | `clk`, `rst`, `start`, and `done` handshaking signals |
-| Testbench | Partial | `tests/tb.sv` instantiates `layer_engine`, enables `$dumpfile`/`$dumpvars`, and drives all ports, but lacks automated pass/fail assertions and non-zero exit codes |
+| Testbench (Tier 1) | Implemented | `tests/tb_core.sv` instantiates `npu`, asserts deterministic hand-calculated Q8.24 outputs, and calls `$fatal` on mismatch; runs via `make test-core` / `make test` |
+| Testbench (Legacy Smoke) | Implemented | `tests/tb.sv` instantiates `layer_engine`, prints outputs, and dumps waveforms without automated assertions; runs via `make sim` |
 
 ---
 
@@ -72,9 +73,11 @@ The package exports a `view` module backed by `petgraph`. `NetGraph::network_to_
 | `cargo build` | Available | Compiles the Rust package and binaries |
 | `cargo run --bin main` | Partial | Trains the source-selected OR model and prints predictions. The export calls are commented out, so the files under `npu/data/` are not overwritten. The run continues into graph artifact generation and terminates with a file error when `src/view/artifacts/` is absent |
 | `cargo run --bin visualization` | Available | Requires Graphviz; generates graph DOT and PNG artifacts |
-| `cargo test` | Unstable | Compiles four tests; the suite fails intermittently because the ternary-distribution test samples the unseeded generator and asserts a variance bound at the true value of its distribution. Coverage of the tensor contracts and of the training path is not yet established |
-| `make sim` (from `npu/`) | Partial | Runs in the sanctioned `hardware` development shell, whose `flake.nix` provides the Python 3 interpreter required by the Verilator `--binary --timing --assert --trace` build. Compiles the RTL list of `files.f` together with `tests/tb.sv`, prints the four legacy evaluations, and dumps waveforms to `build/dump.vcd`. The build tolerates warnings (`-Wno-fatal`); Lacks pass/fail checks in the testbench itself |
-| `make test` / `make all` | Partial | Alias of `sim`; propagates the testbench exit code, so a `$fatal` mismatch fails the target once the testbench is self-checking |
+| `cargo test` | Blocked | Blocked by `E0432` (`Storage` import in `src/tests/tensor_tests.rs`). Four tests exist; the distribution tests sample the unseeded generator and assert a variance bound at the true value of its distribution. Coverage of the tensor contracts and of the training path is not yet established |
+| `make sim` (from `npu/`) | Available | Runs legacy smoke simulation (`tests/tb.sv`, prints results, dumps waveforms to `build/dump.vcd`). Uses `-Wno-fatal` |
+| `make test` / `make all` | Available | Executes Tier 1 testbench `test-core` (`tests/tb_core.sv`); propagates exit code with `$fatal` assertions on mismatch. Exits zero |
+| `make test-core` | Available | Compiles and executes `tests/tb_core.sv` in `build/core/tb_core_sim`; asserts deterministic hand-calculated Q8.24 outputs |
+| `make test-parity` | Pending | Tier 2 golden-vector parity test; requires the Step 1 exporter |
 | `make wave` | Available | Runs GTKWave against `build/dump.vcd` generated from simulation |
 | `make lint` | Available | Runs `verilator --lint-only -Wall --top-module npu -f files.f` (top `npu` covers the wrapper, engines, and primitives); exits zero with no `WIDTHTRUNC`/`WIDTHEXPAND`/`UNDRIVEN` findings. The two `WIDTHEXPAND` findings on the `safe_log(IN)`/`safe_log(OUT)` calls were resolved with explicit `64'` casts (October 2026); verified under Verilator 5.048 and 5.052 |
 | `make clean` | Available | Cleans NPU build outputs |
@@ -83,7 +86,7 @@ The package exports a `view` module backed by `petgraph`. `NetGraph::network_to_
 
 ## Known Technical Limitations
 
-1. **Testbench Self-Checking:** The NPU testbench (`tests/tb.sv`) prints result signals but does not assert equality against expected values. `make test` would propagate a non-zero exit code from a `$fatal` mismatch, but no assertion exists yet; the Rust bit-exact golden model and the ternary export artifacts are implementation Step 1.
+1. **Testbench Self-Checking (Tier 1 vs Tier 2):** Tier 1 core assertions exist in `tests/tb_core.sv` and run via `make test`. Tier 2 golden-vector parity assertions (`tests/tb_parity.sv`) against the Rust bit-exact model and ternary export artifacts (`wt.mem`, `w0.mem`) remain pending implementation Step 1.
 2. **Q8.24 Rounding Strategy:** Rust export (`src/export.rs`) truncates toward zero (`as i32`), while the NPU epilogue reduces the 96-bit $W_0$ product with an arithmetic right shift (floor toward negative infinity, `npu/src/epilogue.sv`). The golden model must replicate the floor semantics for bit-exact parity; neither side uses round-half-to-even.
 3. **Vector Tensor Storage:** Linear layers and gradients currently allocate nested vectors (`Vec<Vec<f32>>`), requiring migration to contiguous `Tensor` storage. The tensor core must first satisfy the surface enumerated in `docs/engineering/specs/TENSOR.md`, Section 4.2.
 4. **Gradient Verification:** The analytical and finite-difference gradients share the same scale, but the finite-difference estimator evaluates the loss difference in single precision with a step of $10^{-3}$, which places the attainable precision near the tolerance of $\epsilon \le 10^{-4}$ required by the project roadmap. Accumulation in double precision and a relative tolerance are required before the check is authoritative.

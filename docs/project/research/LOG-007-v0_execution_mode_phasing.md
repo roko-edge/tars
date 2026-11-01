@@ -50,7 +50,7 @@ Shipping `mode = 1` in v0.1.0 therefore validates surfaces 1 and 2 on a
 well-understood addressing substrate, and leaves zero-skipping as the single
 new variable of v0.2.0.
 
-### 2.2 Ternary Epilogue Contract (Maintainer Sign-Off; Remaining Owners Pending)
+### 2.2 Ternary Epilogue Contract (Normative Standard)
 
 The per-neuron epilogue for ternary modes. Normative formula:
 
@@ -79,11 +79,10 @@ Normative properties, by order of evaluation:
    epilogue, one per epilogue, not in the processing elements; the zero-DSP
    obligation of the PE is unaffected.
 
-**Sign-off status.** The maintainer (Arthur) confirmed this contract,
-including the 96-bit product and the floor-shift correction, in October 2026.
-Sign-off by the remaining intersection owners required by Engineering
-Invariant 4 of the [roadmap](../ROADMAP.md) is pending. Per that invariant,
-any revision to this formula requires simultaneous updates to
+**Status:** Confirmed by the maintainer, October 2026; recorded as project standard.
+Per Engineering Invariant 4 of the [roadmap](../ROADMAP.md), implementation and
+documentation move in one revision; any revision to this formula requires
+simultaneous updates to
 [`ARITHMETIC_Q8_24.md`](../../engineering/specs/ARITHMETIC_Q8_24.md),
 `src/export.rs`, and the NPU RTL in one revision.
 

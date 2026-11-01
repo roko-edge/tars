@@ -71,7 +71,7 @@ saturates again, and applies the activation
 
 ## Size and Configuration
 
-The testbench configures the layer engine with `IN = 2` and `OUT = 1`. The module supports sequential computation of `OUT` output neurons from `IN` input activations within a single affine layer. Multi-layer sequencing (top sequencer, `program.mem`, ping-pong banks) is scheduled as Steps 4 and 5 of [`LOG-007`](../project/research/LOG-007-v0_execution_mode_phasing.md), Section 4.2.
+The testbench configures the layer engine with `IN = 2` and `OUT = 1`. The module supports sequential computation of `OUT` output neurons from `IN` input activations within a single affine layer. Multi-layer sequencing (top sequencer, `program.mem`, ping-pong banks) is scheduled as Step 3 and Step 4 of [`LOG-007`](../project/research/LOG-007-v0_execution_mode_phasing.md), Section 4.2.
 
 ## Current Limitations
 
