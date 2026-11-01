@@ -14,6 +14,7 @@ pub trait Element {
     const DTYPE: DType;
 }
 
+// rhs = right hand side
 pub trait MatMul<Rhs> {
     type Output;
     fn matmul(&self, rhs: &Rhs) -> Self::Output;
@@ -21,7 +22,7 @@ pub trait MatMul<Rhs> {
 
 #[derive(Debug, Clone)]
 pub struct Tensor<T: Element> {
-    storage: Arc<Vec<T>>,
+    storage: Element::Storage,
     shape: Vec<usize>,
     strides: Vec<usize>,
     offset: usize,
@@ -58,8 +59,6 @@ where
     }
 
     pub fn step_logical(shape: &Vec<usize>, v: &mut Vec<usize>) {
-        assert!(!shape.is_empty(), "vector can't be empty");
-
         v[shape.len() - 1] += 1;
 
         let mut i = shape.len() - 1;
