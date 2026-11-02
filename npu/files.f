@@ -1,5 +1,5 @@
-# Fonte única de ficheiros do NPU - partilhada pelo Makefile e pelo LSP.
-# npu_pkg.sv sempre primeiro (package tem de estar declarado antes dos módulos).
+# Single source list of NPU RTL files - shared by Makefile and LSP.
+# npu_pkg.sv must always be first (package declared before dependent modules).
 src/npu_pkg.sv
 src/t3_dec.sv
 src/pe.sv

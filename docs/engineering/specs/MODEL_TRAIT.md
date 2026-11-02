@@ -66,12 +66,12 @@ Section 4.
 
 ### 2.2 `Sequential` as a Composite Module
 
-`Sequential` is re-architected as a composite `Module` that owns an ordered collection of submódules (`Vec<Box<dyn Module>>`).
+`Sequential` is re-architected as a composite `Module` that owns an ordered collection of submodules (`Vec<Box<dyn Module>>`).
 
 #### Structural Requirements
 - **Encapsulation:** Holds an ordered vector of dynamic module trait objects.
 - **Forward Composition:** Evaluating `forward` on `Sequential` recursively pipes the output tensor of module $k$ as the input tensor of module $k+1$.
-- **Parameter Aggregation:** Evaluating `parameters` or `parameters_mut` flattens and concatenates the parameter vectors across all inner submódules in execution order.
+- **Parameter Aggregation:** Evaluating `parameters` or `parameters_mut` flattens and concatenates the parameter vectors across all inner submodules in execution order.
 - **Intermediate Recording:** The composite exposes an evaluation that produces, beside the output tensor, the trace of the intermediates required by backward: the input consumed by each submodule in evaluation order, together with the composite output. The trace is owned by the caller for the duration of the training step and is the sole data source of the backward composition; `backward` consumes the trace and does not re-evaluate the forward chain. The plain `forward` of the trait remains a pure evaluation with no hidden state, and recording never mutates module state (Section 2.1). In the v0.1.0 scope the trace covers the backward requirements of the shipped modules: `Linear` consumes its submodule input, `ReLU` its pre-activation input, and `Sigmoid` its activation output, held as the input of the following submodule or as the composite output. Each `backward` clause drafted under this contract names the trace entries it consumes.
 - **Builder Surface:** `Sequential` exposes a consuming builder as the ergonomic construction surface of the crate: `Sequential::new(input_size)` opens a composition; `linear(output_size)` appends a `Linear` whose input dimension is the running feature count, initializes it through the seeded initializer of the stochasticity surface, advances the running count, and returns the composite; `relu()` and `sigmoid()` append the corresponding activation modules and return the composite. `ReLU` and `Sigmoid` are distinct structs implementing `Module`; no activation enumeration remains in the public surface. The chain shape is normative and is preserved by the trait migration.
 
@@ -95,5 +95,5 @@ require no changes to the training container or optimizer:
 
 - **Convolutional Layers (`Conv2d`):** Implements `Module`, exposing kernel weights and bias parameters.
 - **Closed-Form Continuous Cells (`CfcCell`):** Implements `Module`, handling state transition and input concatenation.
-- **Branching Networks (`DagModel`):** Implements `Module`, executing a directed acyclic graph of submódules.
+- **Branching Networks (`DagModel`):** Implements `Module`, executing a directed acyclic graph of submodules.
 - **Static Composition:** A type-level composition, in which the layer sequence is a static structure and the trait-object hop of `Vec<Box<dyn Module>>` disappears, is a future direction consistent with the compile-time-first stance of the project; it is outside the v0.1.0 scope.
