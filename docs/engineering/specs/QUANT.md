@@ -10,7 +10,7 @@
 
 ## 1. Mathematical Formulation
 
-TARS quantizes continuous latent weights $W \in \mathbb{R}^{m \times n}$ into symmetric ternary states $\{-1, 0, +1\}$ scaled by a single scalar factor $W_0 \in \mathbb{R}^+$ per layer or output channel:
+TARS quantizes continuous latent weights $W \in \mathbb{R}^{m \times n}$ into symmetric ternary states $\{-1, 0, +1\}$ scaled by a single scalar factor $W_0 \in \mathbb{R}^+$ per layer:
 
 $$W_{\text{quant}} = W_0 \cdot Q(W)$$
 
