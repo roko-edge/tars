@@ -73,7 +73,8 @@ support is P0 for Phase 1).
 
 ## SystemVerilog
 
-From `npu/`:\n
+From `npu/`:
+
 ```bash
 make test    # Runs Tier 1 self-checking testbench (test-core); exits zero on pass
 make sim     # Runs legacy smoke testbench (prints result signals)

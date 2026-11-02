@@ -83,6 +83,11 @@ Agents never push to `main`, never rewrite history, and never touch `AUTHORS`,
   Vivado projects, generated `*.mem`, `tests/vectors/`, editor/LSP state
   (`.nvim/`, `.vscode/` workspace indexes). If one is tracked, `git rm --cached`
   and extend `.gitignore`.
+- **Shell-safe message application:** PR bodies and commit messages are written
+  to a file and applied with `gh pr edit --body-file` / `git commit -F`, or via
+  the GitHub web editor. They are NEVER passed through unquoted shell strings:
+  `$` and backticks are shell syntax and will be expanded. Second occurrence,
+  2026-11-01 (PRs #20/#21).
 
 ## 4. Checklist — before every commit AND before every push
 
