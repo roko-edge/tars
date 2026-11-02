@@ -2,7 +2,7 @@
 
 **Document type:** Engineering specification (normative contract).
 **Status:** Normative contract.
-**Revision date:** 2026-11-01 (maintainer decision).
+**Revision date:** 2026-11-02 (maintainer decision).
 **Owns:** Mathematical quantization algorithms, $W_0$ scale calculation, canonical ternary serialization codes, and straight-through estimator (STE) gradient dynamics.
 **Does not cover:** In-memory tensor storage layouts ([`TENSOR.md`](TENSOR.md)), composite module execution ([`MODEL_TRAIT.md`](MODEL_TRAIT.md)), or hardware epilogue reduction ([`ARITHMETIC_Q8_24.md`](ARITHMETIC_Q8_24.md)).
 
@@ -18,11 +18,17 @@ where $Q(W) \in \{-1, 0, +1\}^{m \times n}$.
 
 ### 1.1 Scale Factor ($W_0$)
 
-The scale factor $W_0$ is computed via mean absolute weight magnitude across the weight tensor:
-
 $$W_0 = \frac{1}{m \cdot n} \sum_{i=1}^{m} \sum_{j=1}^{n} |W_{ij}|$$
 
-When channel-wise scaling is configured, $W_0^{(j)}$ is evaluated independently across each output neuron row $j$.
+**Granularity (maintainer decision, 2026-11-02): one $W_0$ per layer** —
+matching the RTL (`npu.sv` exposes `l0_w0`/`l1_w0`; the epilogue applies a
+single scale per layer). Channel-wise scaling ($W_0^{(j)}$ per output row)
+is a future extension that requires an RTL change (indexed $W_0$ bank) and a
+`MEM_FORMAT.md` revision; it is out of scope for v0.1.0.
+
+**Edge cases (normative):** rounding uses round-half-away-from-zero (matching
+Rust `f32::round`); if $W_0 = 0$, all codes are `00` and the dequantized
+weights are zero.
 
 ### 1.2 Quantization Operator ($Q$)
 
@@ -75,17 +81,22 @@ When serializing quantized weights for the hardware NPU (`wt.mem`) or compact me
 
 ## 4. Interface Signatures
 
-Per repository documentation policy, exact method interfaces are defined abstractly:
-
 ```rust
 pub struct QuantizedWeights {
-    pub codes: Vec<u8>, // Packed 2-bit codes (4 trits per byte)
-    pub scale: f32,     // W0 scale parameter
+    pub codes: Vec<u8>, // packed 2-bit codes, canonical emission (00 for
+                        // zero), row-major — the exact wt.mem byte layout
+    pub scale: f32,     // W0 — one per layer (v0.1.0)
 }
 
 pub trait Quantizer {
+    /// absmean over the whole tensor (per-layer W0).
     fn compute_scale(&self, weights: &Tensor<f32>) -> f32;
-    fn quantize(&self, weights: &Tensor<f32>) -> (Tensor<f32>, f32);
-    fn encode_t3(&self, weights: &Tensor<f32>) -> QuantizedWeights;
+    /// codes + scale; the single source for export and dequantization.
+    fn quantize(&self, weights: &Tensor<f32>) -> QuantizedWeights;
+    /// W0 * Q(W) as f32 — the QAT forward weights.
+    fn dequantize(&self, q: &QuantizedWeights) -> Tensor<f32>;
 }
 ```
+
+STE backward is identity pass-through: gradients flow to the latent `W` and
+never to `codes`; no `Quantizer` method implements it.

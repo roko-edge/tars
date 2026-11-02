@@ -2,7 +2,7 @@
 
 **Document type:** Engineering specification (normative contract).
 **Status:** Normative contract.
-**Revision date:** 2026-11-01 (maintainer decision).
+**Revision date:** 2026-11-02 (maintainer decision).
 **Owns:** Frozen software training interfaces across model evaluation, loss computation, gradient tracking, optimizer step execution, batch loading, and the wire export boundary.
 **Does not cover:** Mathematical quantization operators ([`QUANT.md`](QUANT.md)), tensor memory strides ([`TENSOR.md`](TENSOR.md)), or hardware-side FSM execution ([`ARITHMETIC_Q8_24.md`](ARITHMETIC_Q8_24.md)).
 
@@ -110,10 +110,27 @@ Internal refactoring of `Tensor<T>` never alters this wire serialization contrac
 
 ### 1.6 Quantizer and Straight-Through Estimation
 
-The quantizer maps latent continuous weights to discrete ternary states and computes layer scales $W_0$:
+The quantizer maps latent continuous weights to discrete ternary states and computes layer scales $W_0$ (one per layer in v0.1.0):
 
 $$W_0 = \frac{1}{mn} \sum_{ij} |W_{ij}|, \qquad Q(W) = \text{clip}\left(\text{round}\left(\frac{W}{W_0}\right), -1, +1\right)$$
 
+```rust
+pub struct QuantizedWeights {
+    pub codes: Vec<u8>, // packed 2-bit codes, canonical emission (00 for
+                        // zero), row-major — the exact wt.mem byte layout
+    pub scale: f32,     // W0 — one per layer (v0.1.0)
+}
+
+pub trait Quantizer {
+    /// absmean over the whole tensor (per-layer W0).
+    fn compute_scale(&self, weights: &Tensor<f32>) -> f32;
+    /// codes + scale; the single source for export and dequantization.
+    fn quantize(&self, weights: &Tensor<f32>) -> QuantizedWeights;
+    /// W0 * Q(W) as f32 — the QAT forward weights.
+    fn dequantize(&self, q: &QuantizedWeights) -> Tensor<f32>;
+}
+```
+
 - Encoders emit canonical `00` for zero.
-- Backward evaluation applies the Straight-Through Estimator (identity pass-through).
+- Backward evaluation applies the Straight-Through Estimator (identity pass-through): gradients flow to latent weights `W`, never to `codes`.
 - Full specification in [`QUANT.md`](QUANT.md).

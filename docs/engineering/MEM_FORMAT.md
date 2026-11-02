@@ -60,9 +60,10 @@ Section 4.2.
 
 The engine accumulates the conditionally added or subtracted activations in a
 64-bit accumulator. The epilogue then evaluates the 96-bit product of the
-accumulator and the per-layer scale `w0`, reduces it with an arithmetic right
-shift by 24 bits (floor), saturates to 32 bits, adds the per-output bias,
-saturates again, and applies the activation
+accumulator and the scale `w0` (exported as `w0.mem`: one $W_0$ per layer,
+per-layer granularity, [`specs/QUANT.md`](specs/QUANT.md) §1.1, v0.1.0), reduces it
+with an arithmetic right shift by 24 bits (floor), saturates to 32 bits, adds the
+per-output bias, saturates again, and applies the activation
 ([`specs/ARITHMETIC_Q8_24.md`](specs/ARITHMETIC_Q8_24.md), Section 3.3).
 
 ## `target.mem`
