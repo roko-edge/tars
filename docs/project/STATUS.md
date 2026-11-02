@@ -3,7 +3,7 @@
 **Document type:** Project status record. User instructions are maintained in
 [`docs/`](../README.md).
 
-This document reflects the current state of the repository as of October 2026.
+This document reflects the current state of the repository as of November 2026.
 
 ---
 

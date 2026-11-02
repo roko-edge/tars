@@ -71,11 +71,11 @@ saturates again, and applies the activation
 
 ## Size and Configuration
 
-The testbench configures the layer engine with `IN = 2` and `OUT = 1`. The module supports sequential computation of `OUT` output neurons from `IN` input activations within a single affine layer. Multi-layer sequencing (top sequencer, `program.mem`, ping-pong banks) is scheduled as Step 3 and Step 4 of [`LOG-007`](../project/research/LOG-007-v0_execution_mode_phasing.md), Section 4.2.
+The testbench configures the layer engine with `IN = 2` and `OUT = 1`. The module supports sequential computation of `OUT` output neurons from `IN` input activations within a single affine layer. Multi-layer sequencing via the programmable top (sequencer, `program.mem`, ping-pong banks) is deferred to v0.1.1 (LOG-008); v0.1.0 executes multi-layer networks via the assembled `npu.sv` wrapper.
 
 ## Current Limitations
 
 - **Layer Manifest:** Model topology, layer counts, and per-layer dimensions are not yet encapsulated in a formal manifest. Manifest extraction from `Sequential` is the v0.1.0 scope; the `Model<M>` container is deferred until a non-sequential topology exists.
 - **Weight File Format:** `weights.mem` holds legacy dense Q8.24 words while the engine consumes 2-bit ternary codes; the ternary export (`wt.mem`) arrives with implementation Step 1.
 - **Rounding Mode:** Rust export truncates toward zero while the epilogue reduces with an arithmetic right shift (floor); the golden model must replicate the floor semantics. Neither side uses round-half-to-even ([`specs/ARITHMETIC_Q8_24.md`](specs/ARITHMETIC_Q8_24.md), Section 3.4).
-- **Automated Assertions:** `npu/tests/tb.sv` logs outputs and dumps waveforms but does not yet assert bit-exact equality against golden vectors. `make test` propagates the testbench exit code, so the target fails automatically once `$fatal` assertions exist.
+- **Automated Assertions (Tier 1 vs Tier 2):** `npu/tests/tb.sv` is the legacy smoke testbench; Tier 1 self-checking assertions are implemented in `tests/tb_core.sv` under `make test` (`test-core`). Tier 2 golden-vector assertions (`tests/tb_parity.sv`) await implementation Step 1.
