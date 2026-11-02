@@ -171,6 +171,8 @@ Rust Runtime                              NPU Simulation
                                           (PASS/FAIL + $fatal on mismatch)
 ```
 
-This protocol is not implemented by the current testbench. The target behavior is to
-terminate with a non-zero exit status on any mismatch; the current `make test` target
-is only an alias for simulation.
+Tier 1 self-checking assertions are implemented in `tests/tb_core.sv` and run via
+`make test` (defaulting to `test-core`), terminating with a non-zero exit status
+(`$fatal`) on any arithmetic mismatch. Automated golden-vector parity verification
+against the Rust reference model (Tier 2, `tests/tb_parity.sv`) is scheduled for
+implementation Step 1 upon delivery of the ternary exporter.

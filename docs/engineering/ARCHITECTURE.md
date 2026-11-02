@@ -184,7 +184,7 @@ its last result. Layer 0 applies `RELU`; layer 1 applies `IDENTITY`.
 This wrapper is the manual-composition reference of Layer 2 in
 [`ASSEMBLY_AND_TEST_MODEL.md`](ASSEMBLY_AND_TEST_MODEL.md), Section 1. It
 does not contain the sequencer, program memory, or activation banks of the
-programmable top; those arrive with LOG-007 Steps 3–4 and will replace the
+programmable top; those arrive in v0.1.1 (LOG-008) and will replace the
 hand-wired chain, not the engines.
 
 ### The engine: `layer_engine`
@@ -275,7 +275,7 @@ re-enter the documentation.
 | Engine (Layer 1) | A computation unit built from primitives behind the `start`/`done` contract; today only `layer_engine` (dense ternary, `mode = 1`) | — |
 | Wrapper (Layer 2, current) | `npu.sv`: the per-network top that instantiates and chains engines for one specific network; topology is parameters and ports, not code | "the NPU", "top-level NPU" (ambiguous) |
 | Assembled NPU | The `npu.sv` wrapper for a specific network (defaults $784 \to 64 \to 10$); a synonym of *wrapper* used when contrasting with the programmable top | — |
-| Programmable top (Layer 2, target) | The sequencer + `program.mem` + activation banks of LOG-007 Steps 3–4; will replace the wrapper's hand-wired chain | "shell" |
+| Programmable top (Layer 2, target) | The sequencer + `program.mem` + activation banks (deferred to v0.1.1, LOG-008); will replace the wrapper's hand-wired chain | "shell" |
 | `layer_engine` | The single-layer engine: `IDLE`/`RUN`/`WRITE` FSM over one `pe` and one `epilogue` | "npu module" (pre-October 2026 name) |
 | Epilogue | The per-neuron post-processing block: 96-bit $W_0$ product, arithmetic shift by 24, two saturations, bias, activation | "post-op", "output stage" |
 | $W_0$ | Per-layer Q8.24 scale applied by the epilogue before the bias; one scalar per layer in v0.1.0 | "the scale" (ambiguous with quantization step $\Delta$) |

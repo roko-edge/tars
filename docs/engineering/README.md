@@ -27,8 +27,8 @@ not establish that a planned capability is available.
 
 | Domain | Primary records |
 |---|---|
-| Rust model architecture | [`ARCHITECTURE.md`](ARCHITECTURE.md), [`specs/MODEL_TRAIT.md`](specs/MODEL_TRAIT.md) |
-| Tensor engine | [`specs/TENSOR.md`](specs/TENSOR.md) |
+| Rust model architecture | [`ARCHITECTURE.md`](ARCHITECTURE.md), [`specs/MODEL_TRAIT.md`](specs/MODEL_TRAIT.md), [`specs/TRAINING.md`](specs/TRAINING.md) |
+| Tensor engine & quantization | [`specs/TENSOR.md`](specs/TENSOR.md), [`specs/QUANT.md`](specs/QUANT.md) |
 | NPU arithmetic and integration | [`MEM_FORMAT.md`](MEM_FORMAT.md), [`specs/ARITHMETIC_Q8_24.md`](specs/ARITHMETIC_Q8_24.md), [`BOARD_INTEGRATION.md`](BOARD_INTEGRATION.md), [`NPU_SPECIALIZATION_PROPOSAL.md`](NPU_SPECIALIZATION_PROPOSAL.md) |
 | NPU handshake and wrapper protocol | [`PROTOCOL.md`](PROTOCOL.md), [`ASSEMBLY_AND_TEST_MODEL.md`](ASSEMBLY_AND_TEST_MODEL.md) |
 | Visualization and telemetry | [`OBSERVABILITY_PROPOSAL.md`](OBSERVABILITY_PROPOSAL.md) |

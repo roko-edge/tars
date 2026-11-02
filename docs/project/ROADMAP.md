@@ -18,10 +18,9 @@ member requires an explicit reassignment by the lead.
 
 | Owner | Current assignment | Definition of done | Unblocks |
 |---|---|---|---|
-| Gustavo | P0, determinism and fixtures: replace the unseeded global generator with an explicitly seeded PRNG; correct `ternary_distribution_test` (call `ternary_rng`, assert the variance around one with a tolerance, check the ternary support); lock the OR and XOR loss trajectories and canonical weights into `cargo test`. Next assignment of the phase: the typed-element migration, porting `src/math/tensor.rs` to the revised `Tensor<T>` contract of [`TENSOR.md`](../engineering/specs/TENSOR.md) (the `Element` trait, per-type storage, per-type implementation blocks) | Phase 1 Gate, condition 2; the suite becomes deterministic and green; the typed migration lands with the `f32` kernel behavior unchanged and the suite green, with the operation methods as thin dispatchers over the per-type kernel modules (the kernel seam of [`TENSOR.md`](../engineering/specs/TENSOR.md), Section 4) | The regression backbone of the migration phase and every downstream benchmark; Gildo's continued closure package on the revised shape and the migration phase |
-| Gildo | F32 closure package: WP-01, WP-03, WP-04, WP-05, the WP-07 gaps, WP-10, WP-11, WP-12, WP-13; author the `backward` clause draft in [`MODEL_TRAIT.md`](../engineering/specs/MODEL_TRAIT.md) under the Module trait sign-off, drafted against the intermediates recorded by the composite forward (Section 2.2 of the specification), as the parallel assignment while the typed migration is pending | The test matrix of [`TENSOR_PHASE_B.md`](TENSOR_PHASE_B.md), Section 5, fully green, including every failure path; the `MODEL_TRAIT` revision merged with sign-off | The `Linear` migration, the exporter (WP-12 bulk access), and the packed `T3` access (WP-14 depends on WP-04 and WP-11) |
-| Arthur | NPU execution and hardware contracts: finish LOG-007 Step 2 (runtime shape registers remain; the `layer_engine.sv` extraction and the linear weight-stream pointer landed in the October 2026 ternary commit); author the layer-manifest format contract (LOG-007, Section 4.2, Step 1) and retain its sign-off; retain the Module trait sign-off of the `MODEL_TRAIT` `backward` clause; adjust the module forwards and the composite evaluation to record the intermediates that `backward` requires ([`MODEL_TRAIT.md`](../engineering/specs/MODEL_TRAIT.md), Section 2.2); the v0.1.0 obligations of [`NPU_SPECIALIZATION_PROPOSAL.md`](../engineering/NPU_SPECIALIZATION_PROPOSAL.md), Section 3, ride with the engine steps | The Step 2 gate: legacy single-layer results identical and zero width warnings; the manifest contract recorded with sign-off; the training step evaluates the forward chain once and `backward` consumes the recorded trace | NPU Steps 3 through 5 and the Phase 3 exporter implementation |
-| Gustavo (subsequent; blocked by Gildo's closure) | Packed `T3` access, WP-14 T3 scope: the ternary encoding of [`TENSOR.md`](../engineering/specs/TENSOR.md), Section 3.1, dequantization, and byte alignment (Section 2.2, Invariant 7). The `I8` variant is out of scope for v0.1.0. While waiting, the parallel work is the quantizer mathematics ($\Delta$, $W_0$) over latent `F32` weights and the bit-exact simulator specification, which do not depend on the tensor core | The subsequent-phase exit condition of [`TENSOR.md`](../engineering/specs/TENSOR.md), Section 4.2, for the `T3` variant | The quantizer chain, QAT, and the golden-vector path |
+| Gustavo | PR #14 (tensor tests + bug fixes; unblocks `cargo test`) → P0 determinism and fixtures (seeded PRNG, Xavier/He, deterministic `ternary_distribution_test`) → typed migration (`Tensor<T>`) → packed `T3` access (WP-14). While blocked on the typed migration, parallel work is deterministic fixtures ONLY (quantizer and golden-simulator specifications move to Arthur under TS-04 and TS-05) | PR #14 merged; deterministic PRNG lands with seeded OR/XOR regression fixtures; typed migration lands green; WP-14 `T3` access complete | Regression backbone of the migration phase and downstream benchmarks |
+| Gildo | `refactor/tensor-forward-cache-v2` (modules on `Tensor<f32>` + forward cache — closes [`MODEL_TRAIT.md`](../engineering/specs/MODEL_TRAIT.md) §2.2, superseding the module-forward clause previously assigned to Arthur) → Track T training stack (TS-01: `Loss` trait with MSE and SoftmaxCE; TS-02: batch loader with seeded shuffle) | `refactor/tensor-forward-cache-v2` merged; TS-01 and TS-02 tested and verified green | Module forward cache for backward pass; batch training pipeline for MNIST |
+| Arthur | v0.1.0 sprint: Track T quantizer and QAT engine (TS-04: absmean + threshold + STE); bit-exact golden model + export `wt.mem`/`w0.mem` + `tb_parity` (TS-05); LOG-007 Step 2 remainder (16-bit runtime shape registers); layer manifest format contract | TS-04 PTQ baseline and QAT convergence on OR/XOR; TS-05 bit-exact parity verified (`test: test-core test-parity`); runtime shape registers clean under Verilator lint | Bit-exact parity verification and the v0.1.0 release gate |
 
 ---
 
@@ -66,7 +65,7 @@ core engineers with explicit cross-domain intersections.
 
 Work is structured around five primary intersections where each domain features an
 **Owner** (responsible for design and delivery) and a **Peer Reviewer** (responsible
-for contract sign-off and verification).
+for review and verification).
 
 ```text
                 [ GUSTAVO ]
@@ -99,9 +98,9 @@ for contract sign-off and verification).
 
 ### Domain Responsibility Summary
 
-- **Arthur** owns NPU microarchitecture (`layer_engine.sv`, `pe.sv`, `epilogue.sv`, `t3_dec.sv`, `npu_pkg.sv`), the ternary execution mode of the release engine (with the Q8.24 prototype as the development substrate and synthesis baseline, retained in repository history after the October 2026 ternary rewrite), hardware testing (`npu/tests/tb.sv`), Verilator linting, VCD tracing, `Module` trait design, the layer-manifest format contract and its sign-off (the exporter implementation is delegated to Gildo), and the deferred `Model<M>` container. He supplies raw hardware metrics (cycle latency, resource utilization, parity outcomes) to Gustavo for benchmark aggregation.
-- **Gustavo** owns the `DType` enum on `Tensor`, ternary tensor operations (mixed-precision matmul, conditional additions/subtractions with scale $W_0$), mathematical quantization algorithms in `src/quant/` (threshold $\Delta$ and scale $W_0$), stochastic weight generation (seeded PRNG, Xavier/He, ternary sampling), the bit-exact ternary inference simulator and its golden vectors (consumed by the NPU testbench and by the ternary release-gate accuracy measurement), numerical controls (gradient validation with $\epsilon \le 10^{-4}$, Q8.24 and ternary quantization error analysis, saturation checks), the automated Rust test suite for the stochasticity surface (`src/tests/`, `cargo test`), dataset loaders (MNIST), and benchmark harnesses.
-- **Gildo** owns the continuous tensor execution engine (float `matmul`, element-wise float kernels, axis reductions, tensor memory layout (strides, views, broadcasting, COW)), `Linear` layer migration to contiguous `Tensor`, tensorized continuous `backward()`, the exporter implementation over the maintainer's manifest contract (`program.mem`, `wt.mem`, `w0.mem`, golden vectors), and serves as official RTL reviewer for the NPU (`layer_engine.sv`, `pe.sv`, `epilogue.sv`, `t3_dec.sv`, `tb.sv`), auditing FSM correctness, saturation logic, and parity co-simulation. He supplies engine profiling data to Gustavo for benchmark aggregation.
+- **Arthur** owns NPU microarchitecture (`layer_engine.sv`, `pe.sv`, `epilogue.sv`, `t3_dec.sv`, `npu_pkg.sv`), the ternary execution mode of the release engine (with the Q8.24 prototype as the development substrate and synthesis baseline, retained in repository history after the October 2026 ternary rewrite), hardware testing (`npu/tests/tb.sv`, `tb_core.sv`), Verilator linting, VCD tracing, `Module` trait design, the layer-manifest format contract (the exporter implementation is delegated to Gildo), the Track T quantizer and QAT engine (TS-04), the bit-exact golden inference model and golden vector export (TS-05), and the deferred `Model<M>` container. He supplies raw hardware metrics (cycle latency, resource utilization, parity outcomes) to Gustavo for benchmark aggregation.
+- **Gustavo** owns the `DType` enum on `Tensor`, the typed-element migration (`Tensor<T>`), stochastic weight generation (seeded PRNG, Xavier/He, ternary sampling), numerical controls (gradient validation with $\epsilon \le 10^{-4}$), automated Rust test suite for the stochasticity surface (`tests/`, `cargo test`), dataset loaders (MNIST), benchmark harnesses, and optimizer tensorization (TS-03).
+- **Gildo** owns the continuous tensor execution engine (float `matmul`, element-wise float kernels, axis reductions, tensor memory layout (strides, views, broadcasting, COW)), `Linear` layer migration to contiguous `Tensor`, tensorized continuous `backward()` with forward cache (`MODEL_TRAIT.md` §2.2), the training stack `Loss` trait and batch loader (TS-01, TS-02), the exporter implementation over the maintainer's manifest contract (`program.mem`, `wt.mem`, `w0.mem`, golden vectors), and serves as official RTL reviewer for the NPU (`layer_engine.sv`, `pe.sv`, `epilogue.sv`, `t3_dec.sv`, `tb.sv`, `tb_core.sv`), auditing FSM correctness, saturation logic, and parity co-simulation. He supplies engine profiling data to Gustavo for benchmark aggregation.
 
 ---
 
@@ -176,18 +175,33 @@ conditions are met and peer reviews are recorded.
   - [ ] (Led by Gildo; format contract and review by the maintainer) Implement the exporter against the maintainer's manifest contract: layer descriptors, the layer program (`program.mem`), dense ternary weights (`wt.mem`), per-layer scale parameters (`w0.mem`), and golden inference vectors, consuming the bulk access surface and the quantizer output.
 - **Gustavo:**
   - [ ] Implement ternary weight compute kernels: mixed-precision `matmul` ($\text{act} \times \text{ternary}$) with conditional accumulation and scaling by $W_0$.
-  - [ ] Implement mathematical quantization algorithms in `src/quant/` mapping continuous floats to ternary states $\{-W_0, 0, +W_0\}$.
-  - [ ] Implement the bit-exact ternary inference simulator: the Rust reference reproducing the NPU datapath (truncation, arithmetic shift by 24, saturation, per-layer $W_0$ epilogue), producing the golden vectors consumed by `npu/tests/tb.sv` and measuring the ternary release-gate accuracy on the bit-exact path.
   - [ ] Execute numerical gradient validation: verify analytical tensor backprop against finite differences (`num_grad`) with tolerance $\epsilon \le 10^{-4}$, on the `F32` graph with quantizers disabled; quantizer gradients follow the straight-through estimator.
   - [ ] Conduct quantitative analysis of quantization error ($f32 \to \text{Q8.24}$ and ternary loss bounds) and saturation effects.
   - [ ] Run benchmark suite on XOR and multi-layer configurations; log performance metrics, convergence curves, and memory profiles into `docs/project/research/`.
 - **Arthur:**
   - [x] Design multi-cycle Layer Engine FSM in `npu/src/layer_engine.sv` (renamed from `npu.sv`, October 2026) for sequential computation of $M$ output neurons from $N$ inputs (multi-layer chaining and activation units remain pending).
   - [x] Implement the ternary multiply-accumulate execution mode of the release engine: 2-bit dense weights (decode `v = b_0 - b_1` in `t3_dec.sv`), conditional accumulation in `pe.sv`, and the per-layer $W_0$ epilogue in `epilogue.sv` (RTL committed October 2026; golden-vector validation remains gated below). The dense Q8.24 MAC is retired from the tree and retained in repository history as the development substrate and the synthesis baseline (maintainer decision, October 2026). The MAC obligations of [`NPU_SPECIALIZATION_PROPOSAL.md`](../engineering/NPU_SPECIALIZATION_PROPOSAL.md), Section 3, apply: the processing element is an isolated module, negation is exact at N+1 bits, and a decode stage decouples the packing format from the accumulate path.
-  - [ ] Author the layer-manifest format contract (four-word descriptor, mode semantics, `program.mem`/`wt.mem`/`w0.mem` layout, per LOG-007 Section 4.2 Step 1) and retain its sign-off; the contract names the consumers of the format — the NPU testbench, the bit-exact simulator, and the embedded inference runtime load the same artifacts. The sparse stream-entry decision is closed: `mode = 2` uses the LOG-006 token stream exclusively (recorded in [`NPU_SPECIALIZATION_PROPOSAL.md`](../engineering/NPU_SPECIALIZATION_PROPOSAL.md), Section 3, obligation 6). The exporter implementation is delegated to Gildo.
+  - [ ] Author the layer-manifest format contract (four-word descriptor, mode semantics, `program.mem`/`wt.mem`/`w0.mem` layout, per LOG-007 Section 4.2 Step 1); the contract names the consumers of the format — the NPU testbench, the bit-exact simulator, and the embedded inference runtime load the same artifacts. The sparse stream-entry decision is closed: `mode = 2` uses the LOG-006 token stream exclusively (recorded in [`NPU_SPECIALIZATION_PROPOSAL.md`](../engineering/NPU_SPECIALIZATION_PROPOSAL.md), Section 3, obligation 6). The exporter implementation is delegated to Gildo.
+  - [ ] Implement mathematical quantization algorithms in `src/quant/` (TS-04: absmean scale, threshold $\Delta$, STE).
+  - [ ] Implement the bit-exact ternary inference simulator and export `wt.mem`/`w0.mem` for `tb_parity` (TS-05).
   - [ ] Maintain hardware simulation suite and deliver cycle timing data to Gustavo.
 
 **Phase 3 Gate:** Training loop converges on XOR using pure `Tensor` backend. Numerical gradient check passes ($\epsilon \le 10^{-4}$). Ternary mixed-precision operations pass verification against golden software vectors. NPU Layer Engine FSM passes simulation and Gildo's RTL review.
+
+---
+
+### Track T: Training Stack (v0.1.0 Release Path)
+
+The training stack delivers the software capabilities required to train, quantize, and verify the $784 \to 64 \to 10$ MNIST network on the release path. Interfaces are frozen in [`TRAINING.md`](../engineering/specs/TRAINING.md) and [`QUANT.md`](../engineering/specs/QUANT.md).
+
+| WP | Scope | Owner | Exit condition |
+|---|---|---|---|
+| TS-01 | `Loss` trait: `forward(&logits,&target)->f32` + `backward()->Tensor<f32>` (grad wrt logits). Impls: MSE (OR/XOR kept) + SoftmaxCE (MNIST; grad $p - y$) | Gildo | both losses pass tests; OR/XOR regression green |
+| TS-02 | Batch loader: `Data` → batches with seeded shuffle; batch size parameter; epoch loop | Gildo | two runs with same seed give identical trajectory |
+| TS-03 | Optimizer on tensors: `Optimizer::step(&mut Sequential,&Grad)`; BGD first, Adam later without signature change | Gustavo | BGD on `Tensor<f32>` with identical OR/XOR regression |
+| TS-04 | Quantizer (absmean + threshold + STE) + QAT engine (quantized-weight forward, STE backward) | Arthur | PTQ baseline measured; QAT converges on ternary OR/XOR |
+| TS-05 | Bit-exact golden model + export `wt.mem`/`w0.mem` + `tb_parity` | Arthur | bit-exact parity; `test: test-core test-parity` |
+| TS-06 | MNIST pipeline + eval + bootstrap 95% CI + 90% gate | all three | v0.1.0 release gate |
 
 ---
 
@@ -203,7 +217,7 @@ conditions are met and peer reviews are recorded.
   - [ ] Validate end-to-end regression fixtures ensuring bit-exact alignment between software Q8.24 inference and RTL simulation.
 - **Gildo:**
   - [ ] Deprecate and remove legacy vector math code paths.
-  - [ ] Audit finalized NPU testbench results and sign off on RTL hardware verification.
+  - [ ] Audit finalized NPU testbench results and verify RTL hardware verification outcomes.
 
 **Phase 4 Gate:** End-to-end demonstration: Rust train ──► Export ──► NPU simulation PASS with zero bit mismatches. Full benchmark report and research logs consolidated in `docs/project/research/`.
 

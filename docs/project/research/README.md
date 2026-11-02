@@ -21,7 +21,7 @@ The contents of this directory serve as the primary source material for compilin
 | `LOG-005` | Extension to CNNs and CfC Networks | Future work | Planned |
 | `LOG-006` | Ternary Zero-Skipping Weight Encoding | Hardware and quantization | Accepted design; scheduled for v0.2.0 |
 | `LOG-007` | v0 Execution-Mode Phasing and Implementation Sequence | Hardware and release plan | Accepted maintainer position |
-| `LOG-008` | NPU Resource and Energy Measurement Protocol | Hardware benchmark methodology | Planned |
+| [`LOG-008`](LOG-008-v0_governance_and_release_decisions.md) | v0.1.0 Governance, Engineering Invariants, and Release Decisions | Governance and release plan | Accepted maintainer decisions (2026-11-01) |
 
 Supporting analyses:
 

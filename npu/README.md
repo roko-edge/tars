@@ -44,7 +44,7 @@ by the `done` pulse of layer 0 — the `start`/`done` events of
 This wrapper is the manual-composition reference of Layer 2 in
 [`ASSEMBLY_AND_TEST_MODEL.md`](../docs/engineering/ASSEMBLY_AND_TEST_MODEL.md),
 Section 1. It does **not** contain the sequencer, program memory, or
-activation banks of the programmable top; those arrive with LOG-007 Steps 3–4
+activation banks of the programmable top; those arrive in v0.1.1 (LOG-008)
 and will replace the hand-wired chain, not the engines.
 
 **Protocol.** `start` and `done` are events (one-cycle pulses); the wrapper
@@ -98,11 +98,12 @@ invokes the parent hardware shell when `verilator` is not already available on
 Run these commands from `npu/`:
 
 ```bash
-make lint    # verilator --lint-only -Wall over files.f (top: npu — wrapper + engines + primitives)
-make sim     # Compiles (files.f + tests/tb.sv, --binary --timing --assert) and runs
-make test    # Alias of sim; propagates the testbench exit code
-make wave    # Opens GTKWave with build/dump.vcd
-make clean   # Removes the build/ directory
+make lint        # verilator --lint-only -Wall over files.f (top: npu — wrapper + engines + primitives)
+make sim         # Legacy smoke: compiles (files.f + tests/tb.sv) and runs without assertions
+make test        # Runs Tier 1 testbench (test-core); propagates exit code ($fatal on mismatch)
+make test-core   # Compiles and runs tests/tb_core.sv with self-checking assertions
+make wave        # Opens GTKWave with build/dump.vcd
+make clean       # Removes the build/ directory
 ```
 
 `files.f` is the single source of the RTL file list (`npu_pkg.sv` first); the
@@ -110,11 +111,10 @@ Makefile and the language server consume the same list.
 
 The build tolerates warnings so the simulation always runs; `make lint` is the
 quality gate and must exit zero with no `WIDTHTRUNC`/`WIDTHEXPAND`/`UNDRIVEN`
-findings. `make test` propagates the testbench exit code, so a future
-self-checking testbench that calls `$fatal` on a golden mismatch fails the
-target automatically. The current testbench asserts no expected value; golden
-vectors and assertions are pending the Rust bit-exact model (implementation
-Step 1).
+findings (currently exits zero). `make test` defaults to `test-core` (Tier 1:
+`tests/tb_core.sv`), which executes self-checking assertions and calls `$fatal`
+on any mismatch. Tier 2 golden-vector assertions (`tests/tb_parity.sv`) await
+the Rust bit-exact model and exporter (implementation Step 1).
 
 ## Tests
 
@@ -126,14 +126,13 @@ Section 5:
 
 | Tier | Scope | Golden source | State |
 |---|---|---|---|
-| ① `tb_core` | Primitives and `layer_engine` in isolation | Hand-computed values in the testbench | `tests/tb.sv` drives `layer_engine` (no assertions yet) |
+| ① `tb_core` | Primitives, `layer_engine`, and `npu` wrapper in isolation | Hand-computed values in the testbench | `tests/tb_core.sv` instantiates `npu` with assertions (`$fatal` on mismatch); active and green under `make test-core` / `make test` |
 | ② `tb_parity` | `layer_engine` against the Rust golden model | Exporter vectors (bit-exact path) | Not implemented; blocked on the Step 1 exporter |
-| ③ `tb_shell` | Programmable top: sequencer, memories, I/O | System-level golden + `program.mem` | Not implemented; blocked on Steps 3–4 |
+| ③ `tb_shell` | Programmable top: sequencer, memories, I/O | System-level golden + `program.mem` | Deferred to v0.1.1 (LOG-008) |
 
-The wrapper `npu.sv` is exercised by smoke simulations (chaining, handshake)
-but has no dedicated tier yet; it becomes tier ③'s subject when the
-programmable top replaces it. For now, treat the wrapper as the assembly
-reference, not as a verified deliverable.
+The wrapper `npu.sv` is verified by Tier 1 self-checking simulation
+(`tests/tb_core.sv`) asserting deterministic output constants across sequential
+evaluation passes.
 
 ## Current Limitations
 
@@ -143,16 +142,13 @@ reference, not as a verified deliverable.
   each word to its two low bits. The ternary weight export (`wt.mem`) arrives
   with implementation Step 1; until then the testbench needs hand-written
   ternary codes or literal weights.
-- **No assertions:** the testbench prints results but does not compare them
-  against golden vectors; the parity protocol of
-  [`ARITHMETIC_Q8_24.md`](../docs/engineering/specs/ARITHMETIC_Q8_24.md),
-  Section 4 is unimplemented.
-- **Elaboration-time shapes:** `IN` and `OUT` are still elaboration
+- **Tier 2 assertions pending:** Tier 1 has active self-checking assertions in
+  `tests/tb_core.sv`. Tier 2 golden-vector parity assertions
+  (`tests/tb_parity.sv`) against the Rust bit-exact reference await
+  implementation Step 1.
+- **Elaboration-time shapes:** `IN`, `H`, and `OUT` are still elaboration
   parameters. The 16-bit runtime shape registers are Step 2 (LOG-007,
   Section 4.2).
-- **Wrapper untested by tiers:** `npu.sv` compiles under `make lint` (top
-  module) but no tier exercises it against golden vectors; it is the assembly
-  reference until the programmable top arrives.
 
 ## Memory Representation
 

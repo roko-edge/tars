@@ -58,7 +58,7 @@ result[]   : .................└─ v0..vn (held until next request)
 Topology is *parameters + data*, not code: a new network means new sizing and new
 `.mem` files, zero redesign. Layer chaining is a pure wire (`L1.start = L0.done`);
 the two-state FSM (`IDLE`/`RUN`) is protocol arbitration (one bit of state), not
-sequencing. It merges into the future `sequencer` (LOG-007 Step 4) as
+sequencing. It merges into the future `sequencer` (deferred to v0.1.1, LOG-008) as
 `state != IDLE` — no rework.
 
 ## Why are the clauses shaped this way? (lessons)
