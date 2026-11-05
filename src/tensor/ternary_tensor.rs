@@ -11,7 +11,7 @@ pub trait Mul<Rhs> {
 }
 
 impl Element for T3 {
-    type Storage = Arc<Vec<u64>>;
+    type Storage = Arc<Vec<u8>>;
     const DTYPE: DType = DType::T3;
 }
 

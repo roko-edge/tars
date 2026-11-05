@@ -1,4 +1,6 @@
 use num_traits::Zero;
+use std::clone::Clone;
+use std::fmt::Debug;
 use std::ops::{Add, AddAssign, Div, Mul, Sub};
 use std::{sync::Arc, vec};
 
@@ -10,8 +12,16 @@ pub enum DType {
 }
 
 pub trait Element {
-    type Storage;
+    type Storage: Clone + Debug;
     const DTYPE: DType;
+}
+
+#[derive(Debug, Clone)]
+pub struct Tensor<T: Element> {
+    storage: <T as Element>::Storage,
+    shape: Vec<usize>,
+    strides: Vec<usize>,
+    offset: usize,
 }
 
 // rhs = right hand side
@@ -20,28 +30,20 @@ pub trait MatMul<Rhs> {
     fn matmul(&self, rhs: &Rhs) -> Self::Output;
 }
 
-#[derive(Debug, Clone)]
-pub struct Tensor<T: Element> {
-    storage: Element::Storage,
-    shape: Vec<usize>,
-    strides: Vec<usize>,
-    offset: usize,
-}
-
 // Geometry
 impl<T> Tensor<T>
 where
     T: Element,
 {
-    pub fn new(data: Vec<T>, shape: Vec<usize>) -> Self {
-        assert!(data.len() == shape.iter().product());
+    pub fn new(data: T::Storage, shape: Vec<usize>) -> Self {
+        // assert!(data.len() == shape.iter().product());
         Self::from(data, shape, 0)
     }
 
-    fn from(data: Vec<T>, shape: Vec<usize>, offset: usize) -> Self {
+    fn from(data: T::Storage, shape: Vec<usize>, offset: usize) -> Self {
         let strides = Self::contiguous_strides(&shape);
         Self {
-            storage: Arc::new(data),
+            storage: data,
             shape,
             strides,
             offset,
@@ -142,12 +144,14 @@ where
         }
     }
 
-    pub fn storage(&self) -> Arc<Vec<T>> {
+    pub fn storage(&self) -> T::Storage {
         self.storage.clone()
     }
 
     pub fn from_vec(data: Vec<T>, shape: Vec<usize>) -> Self {
         assert_eq!(data.len(), shape.iter().product(), "");
+        // convert from vec<T> to T::Storage;
+
         Self::new(data, shape)
     }
 }
