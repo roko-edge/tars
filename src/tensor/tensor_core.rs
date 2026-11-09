@@ -16,6 +16,11 @@ pub trait Element {
     const DTYPE: DType;
 }
 
+pub trait StorageOpe {
+    type Output;
+    fn acess_data(&self) -> Self::Output;
+}
+
 #[derive(Debug, Clone)]
 pub struct Tensor<T: Element> {
     storage: <T as Element>::Storage,
@@ -33,7 +38,7 @@ pub trait MatMul<Rhs> {
 // Geometry
 impl<T> Tensor<T>
 where
-    T: Element,
+    T: Element + StorageOpe,
 {
     pub fn new(data: T::Storage, shape: Vec<usize>) -> Self {
         // assert!(data.len() == shape.iter().product());
@@ -148,10 +153,9 @@ where
         self.storage.clone()
     }
 
-    pub fn from_vec(data: Vec<T>, shape: Vec<usize>) -> Self {
-        assert_eq!(data.len(), shape.iter().product(), "");
-        // convert from vec<T> to T::Storage;
-
+    pub fn from_vec(data: Vec<T>, shape: Vec<usize>) -> T {
+        // assert_eq!(data.len(), shape.iter().product(), "");
+        let el = Element::Storage;
         Self::new(data, shape)
     }
 }
