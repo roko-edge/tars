@@ -44,13 +44,13 @@ pub fn backward(model: &Sequential, data: &[Data]) -> Grad {
 
         let mut delta = vec![0.0; sample.target.len()];
 
-        for i in 0..sample.target.len() {
+        (0..sample.target.len()).for_each(|i| {
             delta[i] = cost_derivative(
                 acts.last().unwrap()[i],
                 sample.target[i],
                 sample.target.len(),
             );
-        }
+        });
 
         for m in (0..model.modules.len()).rev() {
             match &model.modules[m] {
@@ -58,20 +58,20 @@ pub fn backward(model: &Sequential, data: &[Data]) -> Grad {
                     let a_prev = &acts[m];
                     let g = grad.modules[m].as_mut_linear();
 
-                    for o in 0..l.out_sz {
-                        for w in 0..l.in_sz {
+                    (0..l.out_sz).for_each(|o| {
+                        (0..l.in_sz).for_each(|w| {
                             g.weights[o][w] += delta[o] * a_prev[w];
-                        }
+                        });
                         g.bias[o] += delta[o];
-                    }
+                    });
 
                     let mut prev = vec![0.0; l.in_sz];
 
-                    for w in 0..l.in_sz {
-                        for o in 0..l.out_sz {
+                    (0..l.in_sz).for_each(|w| {
+                        (0..l.out_sz).for_each(|o| {
                             prev[w] += l.weights[o][w] * delta[o];
-                        }
-                    }
+                        });
+                    });
 
                     delta = prev;
                 }
@@ -116,9 +116,11 @@ pub fn backward(model: &Sequential, data: &[Data]) -> Grad {
 
 pub fn num_grad(model: &Sequential, data: &[Data]) -> Grad {
     let mut temp_model = model.clone();
+
     let mut grad = Grad {
         modules: model.modules.clone(),
     };
+
     let h = 1e-3;
     for m in 0..model.modules.len() {
         match &model.modules[m] {

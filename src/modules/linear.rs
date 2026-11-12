@@ -35,6 +35,7 @@ impl Linear {
         }
     }
 }
+
 impl Module for Linear {
     fn forward(&self, input: &[f32]) -> Vec<f32> {
         let mut output = vec![0.0; self.out_sz];

@@ -10,6 +10,7 @@ impl BGD {
     pub fn new(lr: f32) -> Self {
         Self { lr }
     }
+
     pub fn step(&self, model: &mut Sequential, grad: &Grad) {
         for m in 0..model.modules.len() {
             match &grad.modules[m] {
