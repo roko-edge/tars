@@ -1,8 +1,9 @@
 use tars::tensor_core::Tensor;
+use tars::ternary_tensor::*;
 
 #[test]
 fn mul_scalar_test() {
-    let t = Tensor::new(vec![1.0, 2.0, 3.0, 4.0], vec![2, 2]);
+    let t = Tensor::<f32>::from_vec(vec![1.0, 2.0, 3.0, 4.0], vec![2, 2]);
 
     let u = t.mul_scalar(2.0);
     assert_eq!(u.storage().as_slice(), &[2.0, 4.0, 6.0, 8.0]);
@@ -25,7 +26,7 @@ fn mul_scalar_test() {
 
 #[test]
 fn mul_scalar_mut_test() {
-    let mut t = Tensor::new(vec![1.0, 2.0, 3.0, 4.0], vec![2, 2]);
+    let mut t = Tensor::<f32>::from_vec(vec![1.0, 2.0, 3.0, 4.0], vec![2, 2]);
 
     t.mul_scalar_mut(2.0);
     assert_eq!(t.storage().as_slice(), &[2.0, 4.0, 6.0, 8.0]);
@@ -45,7 +46,7 @@ fn mul_scalar_mut_test() {
 
 #[test]
 fn div_scalar_test() {
-    let t = Tensor::new(vec![2.0, 4.0, 6.0, 8.0], vec![2, 2]);
+    let t = Tensor::<f32>::from_vec(vec![2.0, 4.0, 6.0, 8.0], vec![2, 2]);
 
     let u = t.div_scalar(2.0);
     assert_eq!(u.storage().as_slice(), &[1.0, 2.0, 3.0, 4.0]);
@@ -68,7 +69,7 @@ fn div_scalar_test() {
 
 #[test]
 fn div_scalar_mut_test() {
-    let mut t = Tensor::new(vec![2.0, 4.0, 6.0, 8.0], vec![2, 2]);
+    let mut t = Tensor::<f32>::from_vec(vec![2.0, 4.0, 6.0, 8.0], vec![2, 2]);
 
     t.div_scalar_mut(2.0);
     assert_eq!(t.storage().as_slice(), &[1.0, 2.0, 3.0, 4.0]);
@@ -88,108 +89,104 @@ fn div_scalar_mut_test() {
 
 #[test]
 fn add_test() {
-    let t1 = Tensor::new(vec![2.0, 4.0, 6.0, 8.0], vec![2, 2]);
-    let t2 = Tensor::new(vec![2.0, 4.0, 6.0, 8.0], vec![2, 2]);
-
+    let t1 = Tensor::<f32>::from_vec(vec![2.0, 4.0, 6.0, 8.0], vec![2, 2]);
+    let t2 = Tensor::<f32>::from_vec(vec![2.0, 4.0, 6.0, 8.0], vec![2, 2]);
     let t3 = Tensor::<f32>::add(&t1, &t2);
     assert_eq!(t3.storage().as_slice(), &[4.0, 8.0, 12.0, 16.0]);
 
-    let t2 = Tensor::new(vec![0.0, 0.0, 0.0, 0.0], vec![2, 2]);
+    let t2 = Tensor::<f32>::from_vec(vec![0.0, 0.0, 0.0, 0.0], vec![2, 2]);
     let t3 = Tensor::<f32>::add(&t1, &t2);
     assert_eq!(t3.storage().as_slice(), &[2.0, 4.0, 6.0, 8.0]);
 
-    let t2 = Tensor::new(vec![-2.0, -4.0, -6.0, -8.0], vec![2, 2]);
+    let t2 = Tensor::<f32>::from_vec(vec![-2.0, -4.0, -6.0, -8.0], vec![2, 2]);
     let t3 = Tensor::<f32>::add(&t1, &t2);
     assert_eq!(t3.storage().as_slice(), &[0.0, 0.0, 0.0, 0.0]);
 
-    let t2 = Tensor::new(vec![1.0, -2.0, 3.0, -4.0], vec![2, 2]);
+    let t2 = Tensor::<f32>::from_vec(vec![1.0, -2.0, 3.0, -4.0], vec![2, 2]);
     let t3 = Tensor::<f32>::add(&t1, &t2);
     assert_eq!(t3.storage().as_slice(), &[3.0, 2.0, 9.0, 4.0]);
 
-    let t2 = Tensor::new(vec![0.5, 1.5, 2.5, 3.5], vec![2, 2]);
+    let t2 = Tensor::<f32>::from_vec(vec![0.5, 1.5, 2.5, 3.5], vec![2, 2]);
     let t3 = Tensor::<f32>::add(&t1, &t2);
     assert_eq!(t3.storage().as_slice(), &[2.5, 5.5, 8.5, 11.5]);
 }
 
 #[test]
 fn add_mut_test() {
-    let mut t1 = Tensor::new(vec![2.0, 4.0, 6.0, 8.0], vec![2, 2]);
-    let t2 = Tensor::new(vec![2.0, 4.0, 6.0, 8.0], vec![2, 2]);
-
+    let mut t1 = Tensor::<f32>::from_vec(vec![2.0, 4.0, 6.0, 8.0], vec![2, 2]);
+    let t2 = Tensor::<f32>::from_vec(vec![2.0, 4.0, 6.0, 8.0], vec![2, 2]);
     t1.add_mut(&t2);
     assert_eq!(t1.storage().as_slice(), &[4.0, 8.0, 12.0, 16.0]);
 
-    let t2 = Tensor::new(vec![0.0, 0.0, 0.0, 0.0], vec![2, 2]);
+    let t2 = Tensor::<f32>::from_vec(vec![0.0, 0.0, 0.0, 0.0], vec![2, 2]);
     t1.add_mut(&t2);
     assert_eq!(t1.storage().as_slice(), &[4.0, 8.0, 12.0, 16.0]);
 
-    let t2 = Tensor::new(vec![-2.0, -4.0, -6.0, -8.0], vec![2, 2]);
+    let t2 = Tensor::<f32>::from_vec(vec![-2.0, -4.0, -6.0, -8.0], vec![2, 2]);
     t1.add_mut(&t2);
     assert_eq!(t1.storage().as_slice(), &[2.0, 4.0, 6.0, 8.0]);
 
-    let t2 = Tensor::new(vec![1.0, -2.0, 3.0, -4.0], vec![2, 2]);
+    let t2 = Tensor::<f32>::from_vec(vec![1.0, -2.0, 3.0, -4.0], vec![2, 2]);
     t1.add_mut(&t2);
     assert_eq!(t1.storage().as_slice(), &[3.0, 2.0, 9.0, 4.0]);
 
-    let t2 = Tensor::new(vec![0.5, 1.5, 2.5, 3.5], vec![2, 2]);
+    let t2 = Tensor::<f32>::from_vec(vec![0.5, 1.5, 2.5, 3.5], vec![2, 2]);
     t1.add_mut(&t2);
     assert_eq!(t1.storage().as_slice(), &[3.5, 3.5, 11.5, 7.5]);
 }
 
 #[test]
 fn sub_test() {
-    let t1 = Tensor::new(vec![2.0, 4.0, 6.0, 8.0], vec![2, 2]);
-    let t2 = Tensor::new(vec![2.0, 4.0, 6.0, 8.0], vec![2, 2]);
-
+    let t1 = Tensor::<f32>::from_vec(vec![2.0, 4.0, 6.0, 8.0], vec![2, 2]);
+    let t2 = Tensor::<f32>::from_vec(vec![2.0, 4.0, 6.0, 8.0], vec![2, 2]);
     let t3 = Tensor::<f32>::sub(&t1, &t2);
     assert_eq!(t3.storage().as_slice(), &[0.0, 0.0, 0.0, 0.0]);
 
-    let t2 = Tensor::new(vec![0.0, 0.0, 0.0, 0.0], vec![2, 2]);
+    let t2 = Tensor::<f32>::from_vec(vec![0.0, 0.0, 0.0, 0.0], vec![2, 2]);
     let t3 = Tensor::<f32>::sub(&t1, &t2);
     assert_eq!(t3.storage().as_slice(), &[2.0, 4.0, 6.0, 8.0]);
 
-    let t2 = Tensor::new(vec![-2.0, -4.0, -6.0, -8.0], vec![2, 2]);
+    let t2 = Tensor::<f32>::from_vec(vec![-2.0, -4.0, -6.0, -8.0], vec![2, 2]);
     let t3 = Tensor::<f32>::sub(&t1, &t2);
     assert_eq!(t3.storage().as_slice(), &[4.0, 8.0, 12.0, 16.0]);
 
-    let t2 = Tensor::new(vec![4.0, 8.0, 12.0, 16.0], vec![2, 2]);
+    let t2 = Tensor::<f32>::from_vec(vec![4.0, 8.0, 12.0, 16.0], vec![2, 2]);
     let t3 = Tensor::<f32>::sub(&t1, &t2);
     assert_eq!(t3.storage().as_slice(), &[-2.0, -4.0, -6.0, -8.0]);
 
-    let t2 = Tensor::new(vec![1.0, -2.0, 3.0, -4.0], vec![2, 2]);
+    let t2 = Tensor::<f32>::from_vec(vec![1.0, -2.0, 3.0, -4.0], vec![2, 2]);
     let t3 = Tensor::<f32>::sub(&t1, &t2);
     assert_eq!(t3.storage().as_slice(), &[1.0, 6.0, 3.0, 12.0]);
 
-    let t2 = Tensor::new(vec![0.5, 1.5, 2.5, 3.5], vec![2, 2]);
+    let t2 = Tensor::<f32>::from_vec(vec![0.5, 1.5, 2.5, 3.5], vec![2, 2]);
     let t3 = Tensor::<f32>::sub(&t1, &t2);
     assert_eq!(t3.storage().as_slice(), &[1.5, 2.5, 3.5, 4.5]);
 }
 
 #[test]
 fn sub_mut_test() {
-    let mut t1 = Tensor::new(vec![2.0, 4.0, 6.0, 8.0], vec![2, 2]);
-    let t2 = Tensor::new(vec![2.0, 4.0, 6.0, 8.0], vec![2, 2]);
-
+    let mut t1 = Tensor::<f32>::from_vec(vec![2.0, 4.0, 6.0, 8.0], vec![2, 2]);
+    let t2 = Tensor::<f32>::from_vec(vec![2.0, 4.0, 6.0, 8.0], vec![2, 2]);
     t1.sub_mut(&t2);
     assert_eq!(t1.storage().as_slice(), &[0.0, 0.0, 0.0, 0.0]);
 
-    let t2 = Tensor::new(vec![0.0, 0.0, 0.0, 0.0], vec![2, 2]);
+    let t2 = Tensor::<f32>::from_vec(vec![0.0, 0.0, 0.0, 0.0], vec![2, 2]);
     t1.sub_mut(&t2);
     assert_eq!(t1.storage().as_slice(), &[0.0, 0.0, 0.0, 0.0]);
 
-    let t2 = Tensor::new(vec![-2.0, -4.0, -6.0, -8.0], vec![2, 2]);
+    let t2 = Tensor::<f32>::from_vec(vec![-2.0, -4.0, -6.0, -8.0], vec![2, 2]);
     t1.sub_mut(&t2);
     assert_eq!(t1.storage().as_slice(), &[2.0, 4.0, 6.0, 8.0]);
 
-    let t2 = Tensor::new(vec![4.0, 8.0, 12.0, 16.0], vec![2, 2]);
+    let t2 = Tensor::<f32>::from_vec(vec![4.0, 8.0, 12.0, 16.0], vec![2, 2]);
     t1.sub_mut(&t2);
     assert_eq!(t1.storage().as_slice(), &[-2.0, -4.0, -6.0, -8.0]);
 
-    let t2 = Tensor::new(vec![1.0, -2.0, 3.0, -4.0], vec![2, 2]);
+    let t2 = Tensor::<f32>::from_vec(vec![1.0, -2.0, 3.0, -4.0], vec![2, 2]);
     t1.sub_mut(&t2);
     assert_eq!(t1.storage().as_slice(), &[-3.0, -2.0, -9.0, -4.0]);
 
-    let t2 = Tensor::new(vec![0.5, 1.5, 2.5, 3.5], vec![2, 2]);
+    let t2 = Tensor::<f32>::from_vec(vec![0.5, 1.5, 2.5, 3.5], vec![2, 2]);
     t1.sub_mut(&t2);
     assert_eq!(t1.storage().as_slice(), &[-3.5, -3.5, -11.5, -7.5]);
 }
@@ -202,7 +199,7 @@ fn zeros_test() {
 
 #[test]
 fn storage_idx_test() {
-    let t = Tensor::new(vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0], vec![2, 3]);
+    let t = Tensor::<f32>::from_vec(vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0], vec![2, 3]);
     assert_eq!(t.storage_idx(&[0, 0]), 0);
     assert_eq!(t.storage_idx(&[0, 2]), 2);
     assert_eq!(t.storage_idx(&[1, 0]), 3);
@@ -213,4 +210,36 @@ fn storage_idx_test() {
 fn contiguous_strides_test() {
     let strides = Tensor::<f32>::contiguous_strides(&[2, 3, 4]);
     assert_eq!(strides, &[12, 4, 1]);
+}
+
+#[test]
+fn packed_storage_crosses_word_boundary() {
+    let mut data = vec![T3::Zero; 65];
+
+    data[0] = T3::Neg;
+    data[31] = T3::Pos;
+    data[32] = T3::Neg;
+    data[64] = T3::Pos;
+
+    let mut tensor = Tensor::<T3>::from_vec(data, vec![65]);
+
+    assert_eq!(tensor.storage_ref().words().len(), 3);
+    assert_eq!(tensor.get(&[31]), T3::Pos);
+    assert_eq!(tensor.get(&[32]), T3::Neg);
+
+    tensor.set(&[32], T3::Pos);
+
+    assert_eq!(tensor.get(&[32]), T3::Pos);
+    assert_eq!(tensor.get(&[0]), T3::Neg);
+    assert_eq!(tensor.get(&[64]), T3::Pos);
+}
+
+#[test]
+fn packed_storage_is_copy_on_write() {
+    let mut a = Tensor::<T3>::from_vec(vec![T3::Neg, T3::Zero], vec![2]);
+    let b = a.clone();
+    a.set(&[0], T3::Pos);
+
+    assert_eq!(a.get(&[0]), T3::Pos);
+    assert_eq!(b.get(&[0]), T3::Neg);
 }
