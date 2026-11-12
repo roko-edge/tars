@@ -11,14 +11,49 @@ pub enum DType {
     T3,
 }
 
-pub trait Element {
-    type Storage: Clone + Debug;
-    const DTYPE: DType;
+// Backend operations used by Tensor<T> instead of indexing a Vec directly.
+// Indices refer to logical elements
+pub trait StorageOps<T>: Clone + Debug {
+    fn from_vec(data: Vec<T>) -> Self;
+
+    fn len(&self) -> usize;
+
+    fn get(&self, index: usize) -> T;
+
+    fn set(&mut self, index: usize, value: T);
+
+    // Allocate storage containing 'len' copies of 'value'.
+    fn filled(len: usize, value: T) -> Self
+    where
+        T: Clone,
+    {
+        Self::from_vec(vec![value; len])
+    }
 }
 
-pub trait StorageOpe {
-    type Output;
-    fn acess_data(&self) -> Self::Output;
+// Copy-on-write backend for regular elements such as f32.
+impl<T: Clone + Debug> StorageOps<T> for Arc<Vec<T>> {
+    fn from_vec(data: Vec<T>) -> Self {
+        Arc::new(data)
+    }
+
+    fn len(&self) -> usize {
+        self.as_ref().len()
+    }
+
+    fn get(&self, index: usize) -> T {
+        self[index].clone()
+    }
+
+    fn set(&mut self, index: usize, value: T) {
+        Arc::make_mut(self)[index] = value;
+    }
+}
+
+// "Sized" keywork means that the type size should be known at compile time
+pub trait Element: Sized {
+    type Storage: StorageOps<Self>;
+    const DTYPE: DType;
 }
 
 #[derive(Debug, Clone)]
@@ -36,12 +71,10 @@ pub trait MatMul<Rhs> {
 }
 
 // Geometry
-impl<T> Tensor<T>
-where
-    T: Element + StorageOpe,
-{
+impl<T: Element> Tensor<T> {
     pub fn new(data: T::Storage, shape: Vec<usize>) -> Self {
-        // assert!(data.len() == shape.iter().product());
+        let required: usize = shape.iter().product();
+        assert!(data.len() >= required);
         Self::from(data, shape, 0)
     }
 
@@ -153,10 +186,14 @@ where
         self.storage.clone()
     }
 
-    pub fn from_vec(data: Vec<T>, shape: Vec<usize>) -> T {
-        // assert_eq!(data.len(), shape.iter().product(), "");
-        let el = Element::Storage;
-        Self::new(data, shape)
+    pub fn storage_ref(&self) -> &T::Storage {
+        &self.storage
+    }
+
+    pub fn from_vec(data: Vec<T>, shape: Vec<usize>) -> Self {
+        let required: usize = shape.iter().product();
+        assert_eq!(data.len(), required);
+        Self::new(<T::Storage as StorageOps<T>>::from_vec(data), shape)
     }
 }
 
@@ -166,14 +203,12 @@ where
     T: Clone + Element,
 {
     pub fn get(&self, index: &[usize]) -> T {
-        let idx = self.storage_idx(index);
-        self.storage[idx].clone()
+        self.storage.get(self.storage_idx(index))
     }
 
     pub fn set(&mut self, index: &[usize], value: T) {
         let idx = self.storage_idx(index);
-        let storage = Arc::make_mut(&mut self.storage);
-        storage[idx] = value;
+        self.storage.set(idx, value);
     }
 
     pub fn from_slice(data: &[T], shape: Vec<usize>) -> Self {
@@ -196,8 +231,8 @@ where
 {
     pub fn zeros(shape: Vec<usize>) -> Self {
         let numel = shape.iter().product();
-        let data = vec![T::zero(); numel];
-        Self::from(data, shape, 0)
+        let storage = <T::Storage as StorageOps<T>>::filled(numel, T::zero());
+        Self::from(storage, shape, 0)
     }
 
     pub fn make_contiguous(&self) -> Self {
