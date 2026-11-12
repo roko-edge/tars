@@ -5,7 +5,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     let mut train = experiments::or::train();
 
     println!("Starting {:?} experiment...", train.experiment_type);
-    println!("Check docs/experiments/ to check experiments API.");
+    println!("Check docs/experiments/ to view experiments API.");
 
     let step = (train.epochs / 20).max(1);
     let optimizer = BGD::new(train.lr);

@@ -7,6 +7,7 @@ pub fn to_q8_24(x: f32) -> u32 {
     //WARNING: Rust conversion from f32 to u32 saturate in type limits
     ((x * 16_777_216.0) as i32) as u32
 }
+
 pub fn export_model(model: &Sequential) -> Result<(), Box<dyn Error>> {
     let mut file_weights = File::create("npu/data/weights.mem")?;
     let mut file_bias = File::create("npu/data/bias.mem")?;
@@ -25,6 +26,7 @@ pub fn export_model(model: &Sequential) -> Result<(), Box<dyn Error>> {
     }
     Ok(())
 }
+
 pub fn export_data(data: &[Data]) -> Result<(), Box<dyn Error>> {
     let mut file_act = File::create("npu/data/activations.mem")?;
     let mut file_target = File::create("npu/data/target.mem")?;
