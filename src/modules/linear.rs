@@ -54,6 +54,7 @@ impl Linear {
         }
     }
 }
+
 impl Module for Linear {
     fn forward(&self, input: &Tensor<f32>) -> Tensor<f32> {
         let rank = input.shape().len();

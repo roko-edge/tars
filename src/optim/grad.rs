@@ -3,7 +3,7 @@ use crate::AnyModule;
 use crate::ForwardCache;
 use crate::Sequential;
 use crate::act_functions::*;
-use crate::tensor_core::Tensor;
+use crate::tensor_core::{MatMul, Tensor};
 
 #[derive(Clone, Debug)]
 pub struct LinearGrad {
@@ -78,96 +78,3 @@ pub fn backward(model: &Sequential, cache: &ForwardCache, target: &Tensor<f32>) 
 
     grad
 }
-
-/*
-pub fn backward(model: &Sequential, data: &[Data]) -> Grad {
-    let mut grad = Grad {
-        modules: model.modules.clone(),
-    };
-
-    for m in 0..grad.modules.len() {
-        match &model.modules[m] {
-            AnyModule::Linear(l) => {
-                grad.modules[m].as_mut_linear().weights = Tensor::zeros(vec![l.in_sz, l.out_sz]);
-                grad.modules[m].as_mut_linear().bias = Tensor::zeros(vec![l.out_sz]);
-            }
-
-            AnyModule::Activation(_) => {}
-        }
-    }
-
-    for sample in data {
-        let acts = forward_memoria(model, &sample.input);
-
-        let mut delta = vec![0.0; sample.target.len()];
-
-        for i in 0..sample.target.len() {
-            delta[i] = cost_derivative(
-                acts.last().unwrap()[i],
-                sample.target[i],
-                sample.target.len(),
-            );
-        }
-
-        for m in (0..model.modules.len()).rev() {
-            match &model.modules[m] {
-                AnyModule::Linear(l) => {
-                    let a_prev = &acts[m];
-                    let g = grad.modules[m].as_mut_linear();
-
-                    for o in 0..l.out_sz {
-                        for w in 0..l.in_sz {
-                            g.weights[o][w] += delta[o] * a_prev[w];
-                        }
-                        g.bias[o] += delta[o];
-                    }
-
-                    let mut prev = vec![0.0; l.in_sz];
-
-                    for w in 0..l.in_sz {
-                        for o in 0..l.out_sz {
-                            prev[w] += l.weights[o][w] * delta[o];
-                        }
-                    }
-
-                    delta = prev;
-                }
-                AnyModule::Activation(a) => {
-                    let a_in = &acts[m]; // z
-                    let a_out = &acts[m + 1]; // a
-
-                    for i in 0..delta.len() {
-                        let d = match a {
-                            Activation::Relu => relu_deriv_from_z(a_in[i]),
-                            Activation::Sigmoid => sigmoidf_deriv_from_a(a_out[i]),
-                        };
-
-                        delta[i] *= d;
-                    }
-                }
-            }
-        }
-    }
-
-    let n = data.len() as f32;
-
-    for m in 0..grad.modules.len() {
-        match &mut grad.modules[m] {
-            AnyModule::Linear(linear) => {
-                for output_neuron in &mut linear.weights {
-                    for weight in output_neuron {
-                        *weight /= n;
-                    }
-                }
-
-                for bias in &mut linear.bias {
-                    *bias /= n;
-                }
-            }
-            AnyModule::Activation(_) => {}
-        }
-    }
-
-    grad
-}
-*/

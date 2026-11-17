@@ -19,7 +19,7 @@ when a network needs a new kind of computation (a new engine) or different sizin
 |---|---|---|---|
 | 0 — Primitives | `npu_pkg.sv`, `t3_dec.sv`, `pe.sv`, `epilogue.sv` | `npu/src/`, committed | Frozen contracts; change only with a golden-vector regression |
 | 1 — Engines | `layer_engine.sv` (dense ternary, `mode = 1`); future `sparse_frontend` (`mode = 2`), convolution or im2col engines | `npu/src/`, committed | One engine per computation type; every engine obeys the contract of Section 2 |
-| 2 — Per-network top | `npu.sv` (manual two-engine wrapper, committed); sequencer, program memory, activation banks, memory interface (not implemented, LOG-007 Steps 3–4); board glue (`npu/synthesis/`, git-ignored) | Wrapper: `npu/src/npu.sv`; sequencer: pending; board lab: git-ignored | Per network: program data and elaboration parameters only |
+| 2 — Per-network top | `npu.sv` (manual two-engine wrapper, committed); sequencer, program memory, activation banks, memory interface (deferred to v0.1.1, LOG-008); board glue (`npu/synthesis/`, git-ignored) | Wrapper: `npu/src/npu.sv`; sequencer: pending; board lab: git-ignored | Per network: program data and elaboration parameters only |
 
 The three layers are the operational form of the three specialization degrees of
 [`NPU_SPECIALIZATION_PROPOSAL.md`](NPU_SPECIALIZATION_PROPOSAL.md), Section 1:
@@ -38,7 +38,7 @@ separate project, not a block.
 |---|---|---|
 | Configuration | Input/output dimensions, per-layer scale `w0`, activation selector, `mode` | Layer descriptor fields (four-word descriptor, Section 7.1); runtime shape registers are LOG-007 Step 2 |
 | Streams | Packed weight codes, activations, bias | Memory artifacts (`wt.mem`, `w0.mem`, `bias.mem`) delivered by the top memory interface |
-| Handshake | `start` / `done` with the sequencer | Single protocol across engines; `done` is a one-cycle registered pulse, `start` is sampled only in `IDLE` (contract recorded in [`ARCHITECTURE.md`](ARCHITECTURE.md), *Handshake contract*); `layer_engine.sv` implements the elaboration-parameter form today |
+| Handshake | `start` / `done` with the sequencer | Single protocol across engines; `done` is a one-cycle registered pulse, `start` is sampled only in `IDLE` (contract recorded in [`PROTOCOL.md`](PROTOCOL.md)); `layer_engine.sv` implements the elaboration-parameter form today |
 | Internals | Instances of Layer 0 primitives | An engine never reimplements decode, accumulate, or epilogue arithmetic |
 
 `npu_pkg.sv` is the shared type book (`activation_t`, `state_t`, the Q8.24
@@ -79,8 +79,8 @@ in the current phase is manual composition of the reference blocks.
 Current state: the board lab under `npu/synthesis/` is git-ignored
 ([`BOARD_INTEGRATION.md`](BOARD_INTEGRATION.md), Section 1); the versioned tree
 contains only the generic core and its simulation flow. The manual wrapper
-`npu.sv` (two chained engines) exists; the programmable multi-layer top of
-LOG-007 Steps 3–4 (sequencer, program memory, banks) does not exist yet.
+`npu.sv` (two chained engines) exists; the programmable multi-layer top
+(sequencer, program memory, banks) is deferred to v0.1.1 (LOG-008).
 
 Target policy recorded by this proposal:
 
@@ -106,12 +106,13 @@ change trigger.
 | ② `tb_parity` | Layer 1 engine against the Rust golden model | `exp.mem`-class vectors produced by the exporter (Rust bit-exact path) | Gains vectors when a network is added | Release parity gate (LOG-007 Steps 3–5) |
 | ③ `tb_shell` | Layer 2 top: sequencer, memories, I/O | The same golden vectors, observed at the system level, plus the network's `program.mem` | Gains the program of each network | Pre-bitstream gate |
 
-Current state: a single testbench (`npu/tests/tb.sv`) drives `layer_engine`
-with `IN = 2`, `OUT = 1`, loads the checked-in legacy `.mem` files, prints
-results, and dumps waveforms. It has no assertions and no golden comparison
-(STATUS.md, Known Limitation 1). The exporter does not yet emit ternary
-artifacts (LOG-007 Step 1), so tier ② has no input. The tiers above are the
-target structure for the steps that close these gaps.
+Current state: Tier 1 self-checking testbench (`tests/tb_core.sv`) instantiates
+`npu` and asserts deterministic hand-computed Q8.24 outputs with `$fatal` on
+mismatch; it runs under `make test-core` and the default `make test` target. The
+legacy smoke testbench (`tests/tb.sv`, `make sim`) drives `layer_engine` with
+`IN = 2`, `OUT = 1` and prints results without automated assertions. The
+exporter does not yet emit ternary artifacts (LOG-007 Step 1), so tier ② has
+no input. The tier ③ programmable top is deferred to v0.1.1 (LOG-008).
 
 System-level behaviors belong to tier ③ only: button debounce, synchronous
 memory read latency, ping-pong bank flips between layers, the fetch–run–commit
@@ -123,11 +124,13 @@ flow, and reset during execution.
 
 | Target | Tier | State |
 |---|---|---|
-| `test` (alias of `sim`) | ① | Implemented; propagates the testbench exit code once assertions exist |
+| `test` (defaults to `test-core`) | ① | Implemented; runs `tb_core` self-checking testbench; exits zero on pass, non-zero on `$fatal` |
+| `test-core` | ① | Implemented; compiles and runs `tests/tb_core.sv` in `build/core/` |
+| `sim` | smoke | Implemented; compiles and runs legacy `tests/tb.sv` in `build/` (prints without assertions) |
 | `lint` | ① | Implemented; `verilator --lint-only -Wall --top-module npu`, exits zero; covers wrapper, engines, and primitives |
 | `vectors` | ② input | Not implemented; requires the Step 1 exporter |
-| `test-parity` | ② | Not implemented |
-| `sim-shell` | ③ | Not implemented; requires the Step 3–4 top |
+| `test-parity` | ② | Not implemented; requires the Step 1 exporter |
+| `sim-shell` | ③ | Deferred to v0.1.1 (LOG-008) |
 | `bit` | board | Exists in the local lab (`make synt-npu` / `flash-npu`, git-ignored) |
 | `test-all` | ① + ② + ③ | Not implemented |
 
@@ -167,7 +170,7 @@ protocol, decided together with the Step 1 exporter.
 ### 7.4 Generic Top Placement
 
 Section 4 records the target: the generic multi-layer top joins the versioned
-tree when LOG-007 Steps 3–4 land; the board lab stays ignored. Confirming this
+tree when LOG-008 Option B lands in v0.1.1; the board lab stays ignored. Confirming this
 split (and the directory layout of the versioned top and its reference example)
 is a maintainer decision before Step 3 starts.
 

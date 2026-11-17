@@ -65,27 +65,28 @@ after the predictions are printed. There is no runtime experiment selector.
 model trained by `main`. Both binaries require a pre-existing writable
 `src/view/artifacts/` directory and a Graphviz `dot` executable on `PATH`.
 
-The active Rust tests cover the PRNG, Xavier initialization, the ternary distribution,
-and one tensor contiguity case. The suite is not deterministic: the distribution tests
+The active Rust tests cover 14 test cases across PRNG, initialization, ternary sampling,
+and strided tensor kernels. The suite is not yet fully deterministic: the distribution tests
 sample the unseeded global generator, and the ternary-distribution test asserts a
-variance bound at the true value of its distribution, so it fails intermittently.
+variance bound at the true value of its distribution, so it fails intermittently (PRNG seed
+support is P0 for Phase 1).
 
 ## SystemVerilog
 
 From `npu/`:
 
 ```bash
-make sim
-make wave
-make lint
-make clean
+make test    # Runs Tier 1 self-checking testbench (test-core); exits zero on pass
+make sim     # Runs legacy smoke testbench (prints result signals)
+make wave    # Opens GTKWave with build/dump.vcd
+make lint    # Verilator lint-only quality gate (top: npu)
+make clean   # Cleans build artifacts
 ```
 
-`make sim` compiles the RTL list in `npu/files.f` (`npu_pkg.sv`, `t3_dec.sv`,
-`pe.sv`, `epilogue.sv`, `layer_engine.sv`) together with `tests/tb.sv`, then
-prints the result signals. `make test` propagates the testbench exit code. The
-testbench does not yet assert expected results or read `target.mem`.
-See [`npu/README.md`](npu/README.md) for the remaining targets and limitations.
+`make test` compiles and executes the Tier 1 self-checking testbench
+(`tests/tb_core.sv`), terminating with `$fatal` on any mismatch. `make sim` runs
+the legacy smoke testbench (`tests/tb.sv`). See [`npu/README.md`](npu/README.md)
+for the three-tier test model and limitations.
 
 ## Documentation
 

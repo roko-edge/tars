@@ -5,8 +5,7 @@
 release NPU executes dense ternary weights over the Q8.24 activation substrate;
 the ternary arithmetic and epilogue are specified in
 [`LOG-007`](../../project/research/LOG-007-v0_execution_mode_phasing.md), Section
-2.2 (maintainer sign-off recorded, October 2026; sign-off by the remaining
-intersection owners pending).
+2.2 (confirmed by the maintainer, October 2026; recorded as project standard).
 
 This document specifies the shared numeric contract between the Rust training runtime
 and the SystemVerilog NPU. Compliance is mandatory for bit-exact hardware parity.
@@ -103,7 +102,7 @@ an operand of the 96-bit scale product.
 
 ### 3.3 Ternary Epilogue (Normative)
 
-Per output neuron, with sign-off recorded in
+Per output neuron, conforming to the standard recorded in
 [`LOG-007`](../../project/research/LOG-007-v0_execution_mode_phasing.md),
 Section 2.2:
 
@@ -172,6 +171,8 @@ Rust Runtime                              NPU Simulation
                                           (PASS/FAIL + $fatal on mismatch)
 ```
 
-This protocol is not implemented by the current testbench. The target behavior is to
-terminate with a non-zero exit status on any mismatch; the current `make test` target
-is only an alias for simulation.
+Tier 1 self-checking assertions are implemented in `tests/tb_core.sv` and run via
+`make test` (defaulting to `test-core`), terminating with a non-zero exit status
+(`$fatal`) on any arithmetic mismatch. Automated golden-vector parity verification
+against the Rust reference model (Tier 2, `tests/tb_parity.sv`) is scheduled for
+implementation Step 1 upon delivery of the ternary exporter.

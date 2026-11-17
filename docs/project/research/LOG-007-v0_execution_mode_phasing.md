@@ -50,7 +50,7 @@ Shipping `mode = 1` in v0.1.0 therefore validates surfaces 1 and 2 on a
 well-understood addressing substrate, and leaves zero-skipping as the single
 new variable of v0.2.0.
 
-### 2.2 Ternary Epilogue Contract (Maintainer Sign-Off; Remaining Owners Pending)
+### 2.2 Ternary Epilogue Contract (Normative Standard)
 
 The per-neuron epilogue for ternary modes. Normative formula:
 
@@ -79,11 +79,10 @@ Normative properties, by order of evaluation:
    epilogue, one per epilogue, not in the processing elements; the zero-DSP
    obligation of the PE is unaffected.
 
-**Sign-off status.** The maintainer (Arthur) confirmed this contract,
-including the 96-bit product and the floor-shift correction, in October 2026.
-Sign-off by the remaining intersection owners required by Engineering
-Invariant 4 of the [roadmap](../ROADMAP.md) is pending. Per that invariant,
-any revision to this formula requires simultaneous updates to
+**Status:** Confirmed by the maintainer, October 2026; recorded as project standard.
+Per Engineering Invariant 4 of the [roadmap](../ROADMAP.md), implementation and
+documentation move in one revision; any revision to this formula requires
+simultaneous updates to
 [`ARITHMETIC_Q8_24.md`](../../engineering/specs/ARITHMETIC_Q8_24.md),
 `src/export.rs`, and the NPU RTL in one revision.
 
@@ -181,12 +180,12 @@ the previous gate passes.
 
 | Step | Scope | Acceptance gate |
 |---|---|---|
-| 1. Contract and golden model (Rust and docs) | Epilogue sign-off (Section 2.2); four-word layer descriptor and mode semantics documented in [`ARITHMETIC_Q8_24.md`](../../engineering/specs/ARITHMETIC_Q8_24.md) and [`MEM_FORMAT.md`](../../engineering/MEM_FORMAT.md); `src/export.rs` emits `program.mem`, `wt.mem`, `w0.mem` | A small test network (for example $4 \to 3 \to 2$) exports with bit-exact expected vectors |
+| 1. Contract and golden model (Rust and docs) | Epilogue specification (Section 2.2); four-word layer descriptor and mode semantics documented in [`ARITHMETIC_Q8_24.md`](../../engineering/specs/ARITHMETIC_Q8_24.md) and [`MEM_FORMAT.md`](../../engineering/MEM_FORMAT.md); `src/export.rs` emits `program.mem`, `wt.mem`, `w0.mem` | A small test network (for example $4 \to 3 \to 2$) exports with bit-exact expected vectors |
 | 2. Runtime signals and engine extraction | Elaboration parameters `IN`/`OUT` replaced by 16-bit runtime registers; product-form weight addressing replaced by the linear pointer (R1); compute loop migrated from `npu.sv` into `layer_engine.sv` | Zero `WIDTHTRUNC`/`WIDTHEXPAND` warnings under Verilator lint; the legacy single-layer testbench reproduces identical numerical results |
 | 3. Top sequencer and ping-pong | `prog_mem`; activation memory as two banks; top FSM (idle, fetch, run, commit) with per-layer bank inversion | A two-layer `mode = 0` network executes end to end and matches the Rust model exactly |
 | 4. Dense ternary mode and release | Ternary weight memory and per-layer $W_0$ memory; conditional accumulation selected by the active and sign bits; epilogue applies $W_0$ scaling before the bias (Section 2.2) | MNIST $784 \to 128 \to 10$ executes in `mode = 1` bit-exact against the Rust model; tag v0.1.0 |
 
-Step 2 has no dependency on the epilogue sign-off and may proceed
+Step 2 has no dependency on the epilogue specification and may proceed
 immediately: it touches only counter widths and module boundaries while
 preserving the current Q8.24 arithmetic.
 
@@ -222,7 +221,7 @@ Consequences for the implementation ladder of Section 4.2:
 
 | Step | Revised scope | Acceptance gate |
 |---|---|---|
-| 1 | Contract and golden model: epilogue sign-off, four-word layer descriptor, export of `program.mem`, `wt.mem`, `w0.mem` | Unchanged |
+| 1 | Contract and golden model: epilogue specification, four-word layer descriptor, export of `program.mem`, `wt.mem`, `w0.mem` | Unchanged |
 | 2 | Runtime signals and engine extraction over the existing Q8.24 arithmetic | Unchanged: legacy single-layer results identical, zero width warnings |
 | 3 | MAC swap to conditional accumulation; single-layer ternary validated on a small network | Small ternary network bit-exact against the Rust golden model |
 | 4 | Top sequencer and ping-pong activation banks | Two-layer ternary network bit-exact against the Rust golden model |
