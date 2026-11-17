@@ -1,6 +1,6 @@
 use crate::modules::Module;
 pub use crate::rng_gen::random_mat;
-use crate::tensor_core::Tensor;
+use crate::tensor_core::{MatMul, Tensor};
 
 #[derive(Clone, Debug)]
 pub struct Linear {
