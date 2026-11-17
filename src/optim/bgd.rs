@@ -1,7 +1,7 @@
+use crate::AnyModule;
 use crate::grad::Grad;
 use crate::sequential::Sequential;
 pub use crate::tensor_core::Tensor;
-use crate::{AnyModule, LinearGrad};
 
 #[derive(Clone, Copy, Debug)]
 pub struct BGD {
