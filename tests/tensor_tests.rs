@@ -1,4 +1,4 @@
-use tars::tensor_core::Tensor;
+use tars::tensor_core::{MatMul, Tensor};
 use tars::ternary_tensor::*;
 
 #[test]
@@ -109,6 +109,15 @@ fn add_test() {
     let t2 = Tensor::<f32>::from_vec(vec![0.5, 1.5, 2.5, 3.5], vec![2, 2]);
     let t3 = Tensor::<f32>::add(&t1, &t2);
     assert_eq!(t3.storage().as_slice(), &[2.5, 5.5, 8.5, 11.5]);
+}
+
+#[test]
+fn test_matmul() {
+    let l1 = Tensor::<f32>::from_vec(vec![2.0, 2.0, 2.0, 2.0], vec![2, 2]);
+    let l2 = Tensor::<f32>::from_vec(vec![2.0, 2.0, 2.0, 2.0], vec![2, 2]);
+    let out = l1.matmul(&l2);
+
+    assert_eq!(out.storage().as_slice(), &[8.0, 8.0, 8.0, 8.0]);
 }
 
 #[test]
