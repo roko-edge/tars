@@ -52,7 +52,7 @@ module tb_core;
   endtask
 
   initial begin
-    #100_000 $fatal(1, "timeout: done nunca chegou");
+    #100_000 $fatal(1, "timeout: done was not received");
   end
   initial begin
     $dumpfile("build/dump.vcd");
