@@ -47,3 +47,71 @@ impl Batch {
         self.input.shape()[0]
     }
 }
+
+pub struct DataMiniBatches {
+    data: Vec<Data>,
+    batch_size: usize,
+    seed: u64,
+    epoch: u64,
+}
+
+pub struct XorRandomizer {
+    rng: u64,
+}
+
+impl XorRandomizer {
+    pub fn new(seed: u64) -> Self {
+        assert_ne!(seed, 0, "seed must be diferent than 0");
+        Self { rng: seed }
+    }
+
+    pub fn next_rng(&mut self) -> u64 {
+        let mut rng = self.rng;
+
+        rng ^= rng << 13;
+        rng ^= rng >> 7;
+        rng ^= rng << 17;
+        self.rng = rng;
+
+        rng
+    }
+}
+
+impl DataMiniBatches {
+    pub fn new(data: &[Data], batch_size: usize, seed: u64) -> Self {
+        assert!(batch_size > 0);
+        assert!(!data.is_empty());
+
+        Self {
+            data: data.to_vec(),
+            batch_size,
+            seed,
+            epoch: 0,
+        }
+    }
+
+    pub fn iter_epoch(&mut self) -> impl Iterator<Item = Batch> + '_ {
+        let mut rng = XorRandomizer::new(self.seed.wrapping_add(self.epoch));
+        self.epoch += 1;
+
+        let mut indices: Vec<usize> = (0..self.data.len()).collect();
+
+        for i in (1..self.data.len()).rev() {
+            let j = (rng.next_rng() as usize) % (i + 1);
+            indices.swap(i, j);
+        }
+
+        let chunks: Vec<Vec<usize>> = indices
+            .chunks(self.batch_size)
+            .map(|chunk| chunk.to_vec())
+            .collect();
+
+        let data = &self.data;
+
+        chunks.into_iter().map(move |chunk| {
+            let samples: Vec<Data> = chunk.into_iter().map(|i| data[i].clone()).collect();
+
+            Batch::from_samples(&samples)
+        })
+    }
+}
