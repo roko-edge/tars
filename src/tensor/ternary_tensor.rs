@@ -11,7 +11,7 @@ pub enum T3 {
 
 impl T3 {
     // converts from t3 to binary representation
-    const fn bits(self) -> u64 {
+    pub const fn bits(self) -> u64 {
         match self {
             Self::Zero => 0b00,
             Self::Pos => 0b01,

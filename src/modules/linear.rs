@@ -1,4 +1,5 @@
 use crate::modules::Module;
+use crate::quant::*;
 pub use crate::rng_gen::random_mat;
 use crate::tensor_core::{MatMul, Tensor};
 
@@ -52,6 +53,26 @@ impl Linear {
             weights,
             bias,
         }
+    }
+    pub fn quantize(&self) -> (Self, f32) {
+        let mut l = self.clone();
+        let mut w0 = 0.0;
+        for o in 0..l.out_sz {
+            for w in 0..l.in_sz {
+                w0 += l.weights.get(&[o, w]).abs();
+            }
+        }
+        if w0 > 1e-7 {
+            w0 /= (l.in_sz * l.out_sz) as f32;
+        }
+
+        for o in 0..l.out_sz {
+            for w in 0..l.in_sz {
+                let trit = quantize_scalar(l.weights.get(&[o, w]), w0);
+                l.weights.set(&[o, w], trit.as_f32() * w0);
+            }
+        }
+        (l, w0)
     }
 }
 
