@@ -34,19 +34,10 @@ fn main() -> Result<(), Box<dyn Error>> {
         }
     }
 
-    // for d in &train.dataset {
-    //     println!(
-    //         "Recived input: {:?}; The network returns: {:?};  Expected: {:?} ",
-    //         d.input,
-    //         train.model.forward(&d.input),
-    //         d.target
-    //     );
-    // }
-
     let scales;
     (train.model, scales) = train.model.quantize();
     export_model(&train.model, &scales)?;
-    export_data(&train.dataset)?;
+    export_inference(&train.model, &train.dataset)?;
 
     // Export the network topology to a .png
     // let mut net = NetGraph::new(train.model, &train.dataset[0].input);

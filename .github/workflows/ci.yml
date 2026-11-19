@@ -29,7 +29,10 @@ jobs:
         with:
           extra_nix_config: |
             experimental-features = nix-command flakes
-      - run: nix develop .#hardware --command make -C npu lint
+      - name: lint npu rtl
+        run: nix develop .#hardware --command make -C npu lint
+      - name: test npu core integrity
+        run: nix develop .#hardware --command make -C npu test-core
 
   auto-merge:
     name: auto-merge

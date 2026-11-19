@@ -67,7 +67,7 @@ $(PARITY_DIR)/tb_parity_sim: $(FILELIST) $(SRCS) $(TB_PARITY) | $(PARITY_DIR)
 test-parity: $(PARITY_DIR)/tb_parity_sim
 	@$(RUN) ./$(PARITY_DIR)/tb_parity_sim +verilator+quiet
 
-test: test-core #test-parity 
+test: test-core 
 
 wave: sim
 	@$(RUN) gtkwave $(BUILD_DIR)/dump.vcd

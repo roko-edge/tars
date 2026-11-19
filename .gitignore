@@ -18,7 +18,7 @@ build_vivado/
 *.str
 
 # NPU Generated Memory Files
-./npu/data/*.mem
+npu/data/*.mem
 
 # Local FPGA Synthesis Laboratory (git-ignored)
 synthesis/
