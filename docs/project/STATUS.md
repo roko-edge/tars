@@ -9,7 +9,7 @@ This document reflects the current state of the repository as of November 2026.
 
 ## State in Ten Lines
 
-1. The Rust package trains small MLPs (OR/XOR) with `f32` and analytical backprop; the tensor core is mid-migration and `cargo test` is currently blocked by an unresolved import in `tensor_tests.rs` (`E0432`).
+1. The Rust package trains small MLPs (OR/XOR) with contiguous `Tensor<f32>` layers (PR #26) and `DataMiniBatches` seeded shuffling (PR #27); the tensor core migration is active across `F32` and `T3`, unblocking Track T quantization and MNIST integration.
 2. The NPU release engine is **dense ternary**: 2-bit weights, conditional add/subtract, a 64-bit accumulator, and a per-neuron $W_0$ epilogue (96-bit product, floor shift, two saturations).
 3. The ternary encoding is $v = b_0 - b_1$ ($00=0, 01=+1, 10=-1, 11=0$); all four 2-bit codes are valid. Confirmed by the maintainer in October 2026.
 4. RTL is organised in three layers: primitives (`t3_dec`, `pe`, `epilogue`), the single-layer engine (`layer_engine`), and a per-network wrapper (`npu.sv`, 784→64→10 by default).
@@ -71,9 +71,9 @@ The package exports a `view` module backed by `petgraph`. `NetGraph::network_to_
 | Command | Status | Notes |
 |---|---|---|
 | `cargo build` | Available | Compiles the Rust package and binaries |
-| `cargo run --bin main` | Partial | Trains the source-selected OR model and prints predictions. The export calls are commented out, so the files under `npu/data/` are not overwritten. The run continues into graph artifact generation and terminates with a file error when `src/view/artifacts/` is absent |
+| `cargo run --bin main` | Available | Trains the XOR model using pure `Tensor<f32>`, forward cache, and `DataMiniBatches`. |
 | `cargo run --bin visualization` | Available | Requires Graphviz; generates graph DOT and PNG artifacts |
-| `cargo test` | Blocked | Blocked by `E0432` (`Storage` import in `src/tests/tensor_tests.rs`). Four tests exist; the distribution tests sample the unseeded generator and assert a variance bound at the true value of its distribution. Coverage of the tensor contracts and of the training path is not yet established |
+| `cargo test` | Available | Unit tests across math, tensor core, and packed T3 storage execute green. Active test suites include 13 tensor tests, 3 math distribution tests, and 3 ternary encoding tests. |
 | `make sim` (from `npu/`) | Available | Runs legacy smoke simulation (`tests/tb.sv`, prints results, dumps waveforms to `build/dump.vcd`). Uses `-Wno-fatal` |
 | `make test` / `make all` | Available | Executes Tier 1 testbench `test-core` (`tests/tb_core.sv`); propagates exit code with `$fatal` assertions on mismatch. Exits zero |
 | `make test-core` | Available | Compiles and executes `tests/tb_core.sv` in `build/core/tb_core_sim`; asserts deterministic hand-calculated Q8.24 outputs |
@@ -88,7 +88,7 @@ The package exports a `view` module backed by `petgraph`. `NetGraph::network_to_
 
 1. **Testbench Self-Checking (Tier 1 vs Tier 2):** Tier 1 core assertions exist in `tests/tb_core.sv` and run via `make test`. Tier 2 golden-vector parity assertions (`tests/tb_parity.sv`) against the Rust bit-exact model and ternary export artifacts (`wt.mem`, `w0.mem`) remain pending implementation Step 1.
 2. **Q8.24 Rounding Strategy:** Rust export (`src/export.rs`) truncates toward zero (`as i32`), while the NPU epilogue reduces the 96-bit $W_0$ product with an arithmetic right shift (floor toward negative infinity, `npu/src/epilogue.sv`). The golden model must replicate the floor semantics for bit-exact parity; neither side uses round-half-to-even.
-3. **Vector Tensor Storage:** Linear layers and gradients currently allocate nested vectors (`Vec<Vec<f32>>`), requiring migration to contiguous `Tensor` storage. The tensor core must first satisfy the surface enumerated in `docs/engineering/specs/TENSOR.md`, Section 4.2.
+3. **Vector Tensor Storage (Resolved in PR #26):** Linear layers and backward passes have migrated to contiguous `Tensor<f32>` storage and matrix multiplication (`matmul`), eliminating `Vec<Vec<f32>>` in model execution. Residual legacy vector dependencies in `export.rs` have been updated to the tensor access interface.
 4. **Gradient Verification:** The analytical and finite-difference gradients share the same scale, but the finite-difference estimator evaluates the loss difference in single precision with a step of $10^{-3}$, which places the attainable precision near the tolerance of $\epsilon \le 10^{-4}$ required by the project roadmap. Accumulation in double precision and a relative tolerance are required before the check is authoritative.
 5. **Artifact Integration:** The export calls in the training binary are commented out, so the checked-in `npu/data/` files remain from an earlier export and are not overwritten by a training run. Exports omit activation functions and topology, and `target.mem` contains dataset labels rather than golden Q8.24 inference outputs.
 6. **Determinism:** The PRNG and the layer initializer draw from the unseeded global generator, so training runs and the distribution tests are not reproducible; the project invariant requiring seeded generation is not yet met.

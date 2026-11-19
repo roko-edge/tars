@@ -82,6 +82,22 @@ impl Sequential {
 
         cache
     }
+    pub fn quantize(&self) -> (Sequential, Vec<f32>) {
+        let mut out = self.clone();
+        let mut scales = Vec::new();
+        for m in &mut out.modules {
+            match m {
+                AnyModule::Linear(l) => {
+                    let w0;
+                    (*l, w0) = l.quantize();
+                    scales.push(w0);
+                }
+
+                AnyModule::Activation(_) => (),
+            }
+        }
+        (out, scales)
+    }
 }
 
 impl Module for Sequential {

@@ -6,7 +6,8 @@ pub mod modules;
 pub mod optim;
 pub mod tensor;
 pub mod train;
-pub mod view;
+//pub mod view;
+pub mod quant;
 
 pub use data::*;
 pub use experiments::*;
@@ -14,5 +15,6 @@ pub use export::*;
 pub use math::*;
 pub use modules::*;
 pub use optim::*;
+pub use quant::*;
 pub use tensor::*;
 pub use train::*;

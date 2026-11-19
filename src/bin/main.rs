@@ -2,7 +2,7 @@ use std::error::Error;
 use tars::*;
 
 fn main() -> Result<(), Box<dyn Error>> {
-    let mut train = experiments::xor3::train();
+    let mut train = experiments::xor::train();
 
     println!("Starting {:?} experiment...", train.experiment_type);
     println!("Check docs/experiments/ to view experiments API.");
@@ -34,17 +34,19 @@ fn main() -> Result<(), Box<dyn Error>> {
         }
     }
 
-    for d in &train.dataset {
-        println!(
-            "Recived input: {:?}; The network returns: {:?};  Expected: {:?} ",
-            d.input,
-            train.model.forward(&d.input),
-            d.target
-        );
-    }
+    // for d in &train.dataset {
+    //     println!(
+    //         "Recived input: {:?}; The network returns: {:?};  Expected: {:?} ",
+    //         d.input,
+    //         train.model.forward(&d.input),
+    //         d.target
+    //     );
+    // }
 
-    // export_model(&train.model)?;
-    // export_data(&train.dataset)?;
+    let scales;
+    (train.model, scales) = train.model.quantize();
+    export_model(&train.model, &scales)?;
+    export_data(&train.dataset)?;
 
     // Export the network topology to a .png
     // let mut net = NetGraph::new(train.model, &train.dataset[0].input);
