@@ -1,9 +1,12 @@
 # AGENTS.md — Automation & Git Policy
 
-**Status:** [DECIDIDO] by the repository owner (2026-10-28; **amended 2026-10-30**).
-Effective on commit. The 2026-10-30 amendment restores strict human ownership of
-all code: agents never edit code files.
-**Scope:** this repository. Human-only: all code (§1), measured data and academic
+**Status:** [DECIDIDO] by the repository owner (2026-10-28; amended 2026-10-30; **amended 2026-11-19**).
+Effective on commit. The 2026-11-19 amendment authorizes agents to execute the
+git workflow (staging, commit, push, PR creation) for human-written code, while
+maintaining strict human ownership of all code files (.rs, .sv, .svh, testbenches):
+agents never write or edit code files directly, acting exclusively by proposing
+diffs in chat, teaching, and researching implementation methods.
+**Scope:** this repository. Human-only: code writing and editing (§1), measured data and academic
 text (see tars-research/AGENTS.md — that divergence is intentional).
 
 ---
@@ -11,20 +14,22 @@ text (see tars-research/AGENTS.md — that divergence is intentional).
 ## 1. What agents may do here
 
 Agents may edit docs (`docs/`, `**/README.md`) and build files (`Makefile`,
-`files.f`, `.gitignore`, CI), and may run the git workflow **within the limits
-of §2**.
+`files.f`, `.gitignore`, CI), and may run the git workflow (`git add`,
+`git commit`, `git push`, `gh pr create`) **within the limits of §2**.
 
-**Code is strictly human-owned.** All `.rs`, `.sv`, `.svh` files and testbenches
-are edited by humans only. Agents **never** edit, generate, format, refactor, or
-stage code files — directly **or indirectly** (formatters, code generators,
-scripts, symlinks, or alternate paths that write into code files are equally
-forbidden). When asked to write or change code, the agent produces the proposed
-diff **in chat** and the human applies and commits it. Reading and analyzing
-code remains allowed and encouraged — proposals, diagnostics, and reviews in
-chat are exactly the agent's job.
+**Code is strictly human-authored.** All `.rs`, `.sv`, `.svh` files and testbenches
+are written and edited by humans only. Agents **never** directly edit, write,
+generate to disk, or format code files — directly **or indirectly** (formatters,
+code generators, scripts, symlinks, or alternate paths that write into code files
+are equally forbidden). When assisting with code, the agent acts exclusively
+through chat: proposing diffs, explaining architectural and mathematical
+principles, researching methods, and reviewing code. Once the human has written
+or applied the code into the file, the agent is authorized to automate the git
+workflow (staging, commit, push, PR creation) adhering strictly to the attribution
+and commit protocols of §3.
 
-Agents never push to `main`, never rewrite history, and never touch `AUTHORS`,
-`LICENSE`, `CITATION*`, or generated artifacts.
+Agents never push directly to `main`, never rewrite history, and never touch
+`AUTHORS`, `LICENSE`, `CITATION*`, or generated artifacts.
 
 ## 2. Git operations — allowlist (not listed = ask first)
 
@@ -33,14 +38,14 @@ Agents never push to `main`, never rewrite history, and never touch `AUTHORS`,
 
 | Operation | Policy |
 |---|---|
-| `checkout -b agent/<type>-<slug>` / `switch` | ✅ `<type>` ∈ feat, fix, docs, test, refactor, build, chore |
-| `add <path>` | ✅ after reviewing `git diff --cached` — **never for code files** (`.rs`, `.sv`, `.svh`); staging code is human-only |
-| `restore --staged <path>` · `git rm --cached <path>` | ✅ `rm --cached` is how generated files leave the index; code files are still human-only |
-| `git commit` | ✅ on `agent/*` only, **for files within agent write scope (docs, build)**. A commit staging code = human only. Format + trailer per §3 |
+| `checkout -b <type>/<slug>` / `switch` | ✅ `<type>` ∈ feat, fix, docs, test, refactor, build, chore, agent |
+| `add <path>` | ✅ after reviewing `git diff --cached` — authorized for all repository files (including code files written/applied by the human) |
+| `restore --staged <path>` · `git rm --cached <path>` | ✅ index management and untracking generated artifacts |
+| `git commit` | ✅ on working branches. Format + trailer per §3 (git author = human; `Assisted-By:` mandatory) |
 | `git revert <sha>` | ✅ recovery = new commits, never rewrites |
 | `git pull --ff-only` · `git stash` / `git stash pop` | ✅ branch upkeep |
-| `git merge origin/main` | ✅ **into `agent/*` only** — never into `main` |
-| `git push -u origin agent/<name>` | ✅ never `--force`. **Push is publication** — the repo is public and branches are not private: run the §4 scan before pushing, not only before committing |
+| `git merge origin/main` | ✅ into working branches only — never into `main` |
+| `git push -u origin <branch>` | ✅ never `--force`. **Push is publication** — the repo is public: run §4 scan before pushing |
 | push to `main` · merge/rebase **into** `main` | ❌ human only (branch protection) |
 | `push --force` / `--all` / `--tags` · `reset --hard` · `clean -fd` | ❌ never |
 | `commit --amend` · rebase of pushed branches · `tag`/`release` · branch deletion | ❌ human only |
@@ -110,7 +115,9 @@ Agents never push to `main`, never rewrite history, and never touch `AUTHORS`,
 ## 5. Authorship & integrity
 
 - **Code is written by human hands.** Agents assist by proposing diffs in chat,
-  diagnosing, and reviewing — never by writing code into the repository.
+  teaching, diagnosing, and reviewing — never by writing code directly into the repository.
+  Git operations (staging, commit, push, PR creation) on non-main branches may be executed
+  by agents on behalf of the human author after verification gates pass.
 - **Every commit carries attribution** (git author = human; `Assisted-By` trailer
   = agent). Never forge authorship, never remove existing trailers.
 - `AUTHORS`, `LICENSE`, `CITATION*`: human-only, never edited by agents.
@@ -144,7 +151,7 @@ until they land.
 
 | Target | Policy |
 |---|---|
-| **Code: `.rs`, `.sv`, `.svh`, testbenches** | **human only** — agents propose diffs in chat; never edit, generate, format, or stage |
+| **Code: `.rs`, `.sv`, `.svh`, testbenches** | **human-authored** — agents propose diffs in chat, teach, and research; never write or edit code files directly. Staging/committing code is authorized for agents after human writes |
 | `docs/`, `**/README.md`, build files | agents (per §1) |
 | **This file (`AGENTS.md`)** | **human commit only** — agents may draft changes, but need explicit approval before staging |
 | `.gitignore` | agents may **add generated paths**; never edit it to hide artifacts from the "never commit" rules or to bypass this policy |
