@@ -15,10 +15,10 @@ This document reflects the current state of the repository as of November 2026.
 4. RTL is organised in three layers: primitives (`t3_dec`, `pe`, `epilogue`), the single-layer engine (`layer_engine`), and a per-network wrapper (`npu.sv`, 784→64→10 by default).
 5. `make lint` (top `npu`) exits zero; `make test` defaults to `test-core` and executes the Tier 1 self-checking testbench with assertions (`$fatal`).
 6. Tier 1 testbench `tests/tb_core.sv` is implemented and self-checking; golden parity against the Rust bit-exact model (`tb_parity`, Tier 2) is the next gate (LOG-007 Step 1).
-7. The checked-in `npu/data/` files are legacy dense Q8.24; the ternary weight export (`wt.mem`, `w0.mem`) does not exist yet.
+7. Dense ternary weight export (`wt.mem`) and per-layer scales (`w0.mem`) are implemented in `src/export.rs` (PR #30); checked-in legacy `npu/data/` files remain retained for `tb.sv`.
 8. The programmable top (sequencer, `program.mem`, ping-pong banks) is not implemented; the wrapper is the manual stand-in.
 9. Release target: MNIST $784 \to 64 \to 10$ bit-exact against the Rust model, ternary accuracy $> 90\%$; tag v0.1.0.
-10. Verification is three-tiered (`tb_core` / `tb_parity` / `tb_shell`); Tier 1 (`tb_core`) is active and green; Tier 2 (`tb_parity`) awaits the Step 1 exporter.
+10. Verification is three-tiered (`tb_core` / `tb_parity` / `tb_shell`); Tier 1 (`tb_core`) is active and green; Tier 2 (`tb_parity`) is unblocked with `wt.mem`/`w0.mem` export landed in PR #30.
 
 ---
 
@@ -26,19 +26,19 @@ This document reflects the current state of the repository as of November 2026.
 
 | Component | Status | Implementation Details |
 |---|---|---|
-| Sequential Model | Implemented | `Sequential` stores `Vec<AnyModule>`; the tensor-based replacement is specified under `docs/engineering/` |
-| Dense Layer | Implemented | `Linear` uses `Vec<Vec<f32>>` weights and `Vec<f32>` biases |
+| Sequential Model | Implemented | `Sequential` stores `Vec<AnyModule>`; implements forward caching and `.quantize()` extracting layer-wise scales $W_0$ |
+| Dense Layer | Implemented | `Linear` uses contiguous `Tensor<f32>` weights and `Tensor<f32>` biases (PR #26); implements `.quantize()` returning quantized layer and scale $W_0$ (PR #30) |
 | Activations | Implemented | ReLU and Sigmoid modules |
-| Tensor Core | In Progress | `Tensor` in `src/math/tensor.rs` implements container-level `Storage` dispatch (`F32`, `I8`, `T3`) and the `DType` tag. Active over `F32`: geometry accessors, `get`/`set` with COW (`Arc::make_mut`), zero-copy `transpose` and its in-place variant, parameterized `zeros`, `make_contiguous`, the element-wise kernels (`add`, `sub`, tensor `mul`/`div`, `mul_scalar`, `div_scalar`, `map`, with in-place variants), the full reduction `sum`, and the products `matmul`, `matvec`, `outer`. Open clauses of `docs/engineering/specs/TENSOR.md`: construction capacity validation, one-byte copyable type tag, rank-zero-safe logical iteration, non-empty precondition diagnostics, zero-divisor rejection in `div_scalar`, stateful `map` callables, the bulk access surface, and the `I8`/`T3` access paths. The typed-element revision of the specification (compile-time `Tensor<T>`, October 2026) is pending the source migration |
+| Tensor Core | Implemented | `Tensor<T>` in `src/tensor/` implements typed-element dispatch (`F32`, `T3`), COW storage (`Arc<Vec<T>>`), packed ternary bit storage (`PackedT3Storage`), and strided geometry |
 | Loss Function | Implemented | Mean Squared Error (MSE) across outputs and dataset samples |
-| Analytical Backpropagation | Implemented | Full analytical backprop in `src/optim/grad.rs` (`backward()`) |
+| Analytical Backpropagation | Implemented | Full analytical backprop in `src/optim/grad.rs` (`backward()`) operating with `ForwardCache` |
 | Finite-Difference Gradient | Implemented | Centered finite differences in `src/optim/grad.rs` (`num_grad()`), retained for verification |
 | Optimizer | Implemented | Batch Gradient Descent (BGD) applying computed gradients |
 | Experiments | Implemented | Built-in OR and XOR experiment factories |
-| Fixed-Point Export | Implemented | `export_model()` and `export_data()` convert values to Q8.24 fixed-point hex files under `npu/data/` (`weights.mem`, `bias.mem`, `activations.mem`, `target.mem`). The training binary's export calls are commented out, so the checked-in files are not overwritten (limitation 5) |
-| Automated Tests | Blocked | `cargo test` is temporarily blocked by an unresolved import in `src/tests/tensor_tests.rs` (`E0432: unresolved import Storage`). When unblocked, four tests exist and only one exercises `Tensor`. The distribution tests sample the unseeded global generator, and the ternary-distribution test asserts a variance bound at the true value of its distribution, so the suite fails intermittently. The tensor contracts, the module hierarchy, and the optimizer have no coverage |
+| Fixed-Point & Ternary Export | Implemented | `export_model()` exports dense 2-bit ternary codes (`wt.mem`), per-layer scale parameters (`w0.mem` in Q8.24), and biases (`bias.mem` in Q8.24) under `npu/data/` (PR #30). `export_data()` exports activations and targets |
+| Automated Tests | Available | `cargo test` executes 20/20 unit and integration tests cleanly across core library, math distributions, and tensor operations |
 
-The Rust implementation uses `f32`, `std`, and dynamically allocated vectors. Analytical backpropagation is present, but operates on nested vectors rather than contiguous tensors.
+The Rust implementation uses contiguous `Tensor<f32>` storage and matrix multiplication. Analytical backpropagation operates through `ForwardCache`. Quantization maps latent weights to ternary states scaled by layer-wise $W_0$.
 
 ---
 
@@ -73,11 +73,11 @@ The package exports a `view` module backed by `petgraph`. `NetGraph::network_to_
 | `cargo build` | Available | Compiles the Rust package and binaries |
 | `cargo run --bin main` | Available | Trains the XOR model using pure `Tensor<f32>`, forward cache, and `DataMiniBatches`. |
 | `cargo run --bin visualization` | Available | Requires Graphviz; generates graph DOT and PNG artifacts |
-| `cargo test` | Available | Unit tests across math, tensor core, and packed T3 storage execute green. Active test suites include 13 tensor tests, 3 math distribution tests, and 3 ternary encoding tests. |
+| `cargo test` | Available | Unit and integration tests execute green across all suites (20/20 pass: 14 tensor tests, 3 math distribution tests, and 3 packed ternary tests). |
 | `make sim` (from `npu/`) | Available | Runs legacy smoke simulation (`tests/tb.sv`, prints results, dumps waveforms to `build/dump.vcd`). Uses `-Wno-fatal` |
 | `make test` / `make all` | Available | Executes Tier 1 testbench `test-core` (`tests/tb_core.sv`); propagates exit code with `$fatal` assertions on mismatch. Exits zero |
 | `make test-core` | Available | Compiles and executes `tests/tb_core.sv` in `build/core/tb_core_sim`; asserts deterministic hand-calculated Q8.24 outputs |
-| `make test-parity` | Pending | Tier 2 golden-vector parity test; requires the Step 1 exporter |
+| `make test-parity` | Pending | Tier 2 golden-vector parity test; Step 1 exporter landed in PR #30, awaiting `tb_parity.sv` |
 | `make wave` | Available | Runs GTKWave against `build/dump.vcd` generated from simulation |
 | `make lint` | Available | Runs `verilator --lint-only -Wall --top-module npu -f files.f` (top `npu` covers the wrapper, engines, and primitives); exits zero with no `WIDTHTRUNC`/`WIDTHEXPAND`/`UNDRIVEN` findings. The two `WIDTHEXPAND` findings on the `safe_log(IN)`/`safe_log(OUT)` calls were resolved with explicit `64'` casts (October 2026); verified under Verilator 5.048 and 5.052 |
 | `make clean` | Available | Cleans NPU build outputs |
@@ -86,7 +86,7 @@ The package exports a `view` module backed by `petgraph`. `NetGraph::network_to_
 
 ## Known Technical Limitations
 
-1. **Testbench Self-Checking (Tier 1 vs Tier 2):** Tier 1 core assertions exist in `tests/tb_core.sv` and run via `make test`. Tier 2 golden-vector parity assertions (`tests/tb_parity.sv`) against the Rust bit-exact model and ternary export artifacts (`wt.mem`, `w0.mem`) remain pending implementation Step 1.
+1. **Testbench Self-Checking (Tier 1 vs Tier 2):** Tier 1 core assertions exist in `tests/tb_core.sv` and run via `make test`. Tier 2 golden-vector parity assertions (`tests/tb_parity.sv`) against the Rust bit-exact model and ternary export artifacts (`wt.mem`, `w0.mem` landed in PR #30) are the active Step 1 implementation target.
 2. **Q8.24 Rounding Strategy:** Rust export (`src/export.rs`) truncates toward zero (`as i32`), while the NPU epilogue reduces the 96-bit $W_0$ product with an arithmetic right shift (floor toward negative infinity, `npu/src/epilogue.sv`). The golden model must replicate the floor semantics for bit-exact parity; neither side uses round-half-to-even.
 3. **Vector Tensor Storage (Resolved in PR #26):** Linear layers and backward passes have migrated to contiguous `Tensor<f32>` storage and matrix multiplication (`matmul`), eliminating `Vec<Vec<f32>>` in model execution. Residual legacy vector dependencies in `export.rs` have been updated to the tensor access interface.
 4. **Gradient Verification:** The analytical and finite-difference gradients share the same scale, but the finite-difference estimator evaluates the loss difference in single precision with a step of $10^{-3}$, which places the attainable precision near the tolerance of $\epsilon \le 10^{-4}$ required by the project roadmap. Accumulation in double precision and a relative tolerance are required before the check is authoritative.
