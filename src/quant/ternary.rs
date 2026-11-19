@@ -1,5 +1,3 @@
-use crate::AnyModule;
-use crate::Sequential;
 use crate::tensor::ternary_tensor::T3;
 pub fn quantize_scalar(weight: f32, w0: f32) -> T3 {
     if w0 <= 1e-7 {

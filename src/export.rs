@@ -36,15 +36,16 @@ pub fn export_model(model: &Sequential, scales: &[f32]) -> Result<(), Box<dyn Er
     }
     Ok(())
 }
-pub fn export_data(data: &[Data]) -> Result<(), Box<dyn Error>> {
-    let mut file_act = File::create("npu/data/activations.mem")?;
+pub fn export_inference(model: &Sequential, data: &[Data]) -> Result<(), Box<dyn Error>> {
+    let mut file_input = File::create("npu/data/activations.mem")?;
     let mut file_target = File::create("npu/data/target.mem")?;
     for sample in data {
         for i in 0..sample.input.numel() {
-            writeln!(file_act, "{:08X}", to_q8_24(sample.input.get(&[i])))?;
+            writeln!(file_input, "{:08X}", to_q8_24(sample.input.get(&[i])))?;
         }
-        for t in 0..sample.target.numel() {
-            writeln!(file_target, "{:08X}", to_q8_24(sample.target.get(&[t])))?;
+        let output = model.forward(&sample.input);
+        for o in 0..output.numel() {
+            writeln!(file_target, "{:08X}", to_q8_24(output.get(&[o])))?;
         }
     }
     Ok(())
