@@ -75,26 +75,38 @@ impl NetGraph {
         g.add_edge(from, to, weight)
     }
 
-    // TODO:
-    // This should be an external function (used in main/train also) that uses tensor ope +
-    // iterators.
-    fn extract_graph(&mut self, mut number_neurons: usize, mut previous_layer_start: usize) {
+    fn extract_topology(&mut self, input_size: usize) {
+        self.graph.clear();
+
+        let mut previous_layer: Vec<NodeIndex> = (0..input_size)
+            .map(|i| self.graph.add_node(Perceptron::new(i)))
+            .collect();
+
         for module in &self.model.modules {
             match module {
                 AnyModule::Linear(linear) => {
-                    let current_layer_start: usize = number_neurons;
+                    let weights = linear.weights.storage_ref();
+                    let in_features = previous_layer.len();
+                    let out_features = weights.len() / in_features;
 
-                    for o in &linear.weights {
-                        Self::create_node(&mut self.graph, number_neurons);
+                    assert_eq!(weights.len(), in_features * out_features);
 
-                        for (w, &weight) in o.iter().enumerate() {
-                            let from_idx = NodeIndex::new(previous_layer_start + w);
-                            let to_idx = NodeIndex::new(number_neurons);
-                            Self::create_edge(&mut self.graph, from_idx, to_idx, weight);
+                    let current_layer: Vec<NodeIndex> = (0..out_features)
+                        .map(|i| self.graph.add_node(Perceptron::new(i)))
+                        .collect();
+
+                    for out_idx in 0..out_features {
+                        for in_idx in 0..in_features {
+                            let weight_idx = out_idx * in_features + in_idx;
+
+                            self.graph.add_edge(
+                                previous_layer[in_idx],
+                                current_layer[out_idx],
+                                weights[weight_idx],
+                            );
                         }
-                        number_neurons += 1;
                     }
-                    previous_layer_start = current_layer_start;
+                    previous_layer = current_layer;
                 }
                 AnyModule::Activation(_) => {}
             }
@@ -107,21 +119,13 @@ impl NetGraph {
         let source: &str = "src/view/artifacts/graph.dot";
         let destiny: &str = "src/view/artifacts/network.png";
 
-        // TODO:
-        // Check what's wrong here:
-        // Creates the first layer
-        // (0..self.input_data.len())
-        //     .map(|i| Self::create_node(&mut self.graph, i))
-        //     .collect();
-
         for i in 0..self.input_data.len() {
             Self::create_node(&mut self.graph, i);
         }
 
         let number_neurons = self.input_data.len();
-        let previous_layer_start = 0;
 
-        Self::extract_graph(self, number_neurons, previous_layer_start);
+        Self::extract_topology(self, number_neurons);
         Self::export_topology(self, source, destiny)?;
         Ok(())
     }
