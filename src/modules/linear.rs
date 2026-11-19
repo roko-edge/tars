@@ -28,6 +28,7 @@ impl Linear {
             bias,
         }
     }
+
     pub fn zeros(in_sz: usize, out_sz: usize) -> Self {
         let weights = Tensor::zeros(vec![out_sz, in_sz]);
         let bias = Tensor::zeros(vec![out_sz]);
@@ -39,14 +40,16 @@ impl Linear {
             bias,
         }
     }
+
     pub fn random(in_sz: usize, out_sz: usize) -> Self {
-        // Acanaiado, trocar essa função por uma que já use vetor unidimensional;
         let weights_random = random_mat(in_sz, out_sz);
         let weights = Tensor::from_vec(
             weights_random.into_iter().flatten().collect(),
             vec![out_sz, in_sz],
         );
+
         let bias = Tensor::zeros(vec![out_sz]);
+
         Self {
             in_sz,
             out_sz,
@@ -54,14 +57,17 @@ impl Linear {
             bias,
         }
     }
+
     pub fn quantize(&self) -> (Self, f32) {
         let mut l = self.clone();
         let mut w0 = 0.0;
+
         for o in 0..l.out_sz {
             for w in 0..l.in_sz {
                 w0 += l.weights.get(&[o, w]).abs();
             }
         }
+
         if w0 > 1e-7 {
             w0 /= (l.in_sz * l.out_sz) as f32;
         }

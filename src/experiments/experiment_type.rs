@@ -2,4 +2,6 @@
 pub enum ExperimentType {
     Or,
     Xor,
+    Mnist,
+    Custom,
 }
