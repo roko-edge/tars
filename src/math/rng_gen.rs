@@ -1,20 +1,16 @@
-use rand::RngExt;
-use rand::prelude::*;
 use rand::rngs::ChaCha8Rng;
+use rand::{RngExt, SeedableRng};
 
 // rand::random_range() function generates a distribution with mean 1/2 and variance 1/12. But,
 // our goal is to produce a pseudo-rng with mean 0 and variance 1 - according to xavier glorot. So,
 // we apply the linear transformation T = srqt(3) * (2*u -1).
-// T stretches u E [0, 1) to [-1, 1], making the mean 0.
+// T stretches u E [0, 1) to [-sqrt(3), sqrt(3)], making the mean 0.
 // considering [-1, 1], var(x) = (sqrt(3) * sqrt(3)*1/2) / 12 = (2 * srqt(3)*1/2)
 // / 12 = 12/12 = 1
 // So, prng fn generates a distribution with mean 0 and var 1 - exactly what we want.
 
-pub fn prng(low: f32, high: f32) -> f32 {
-    // SEED
-    let mut rng_seed = ChaCha8Rng::seed_from_u64(67);
-    // RNG
-    let u: f32 = rng_seed.random_range(low..high);
+pub fn prng(rng: &mut ChaCha8Rng) -> f32 {
+    let u: f32 = rng.random_range(0.0..1.0);
     3.0_f32.sqrt() * (2.0 * u - 1.0)
 }
 
@@ -26,8 +22,12 @@ pub fn prng(low: f32, high: f32) -> f32 {
 // initialization when n_in == n_out) - see Glorot & Bengio (2010):
 // [https://www.researchgate.net/publication/215616968_Understanding_the_difficulty_of_training_deep_feedforward_neural_networks]
 
-pub fn xavier(n: usize) -> Vec<f32> {
-    (0..n).map(|_| prng(0.0, 1.0) / (n as f32).sqrt()).collect()
+pub fn xavier(rng: &mut ChaCha8Rng, fan_in: usize, fan_out: usize) -> Vec<f32> {
+    assert!(fan_in > 0 && fan_out > 0);
+
+    let scale = (2.0 / (fan_in as f32 + fan_out as f32)).sqrt();
+
+    (0..fan_in).map(|_| prng(rng) * scale).collect()
 }
 
 // This function returns a random number between from the discrete interval [-1, 0, 1]
@@ -52,10 +52,6 @@ pub fn ternary_rng() -> f32 {
     }
 }
 
-pub fn random_mat(lenx: usize, leny: usize) -> Vec<Vec<f32>> {
-    let mut mat = vec![vec![0.0; lenx]; leny];
-    for l in &mut mat {
-        *l = xavier(lenx);
-    }
-    mat
+pub fn random_mat(rng: &mut ChaCha8Rng, fan_in: usize, fan_out: usize) -> Vec<Vec<f32>> {
+    (0..fan_out).map(|_| xavier(rng, fan_in, fan_out)).collect()
 }

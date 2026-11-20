@@ -2,6 +2,8 @@ use crate::modules::Module;
 use crate::quant::*;
 pub use crate::rng_gen::random_mat;
 use crate::tensor_core::{MatMul, Tensor};
+use rand::SeedableRng;
+use rand::rngs::ChaCha8Rng;
 
 #[derive(Clone, Debug)]
 pub struct Linear {
@@ -42,7 +44,9 @@ impl Linear {
     }
 
     pub fn random(in_sz: usize, out_sz: usize) -> Self {
-        let weights_random = random_mat(in_sz, out_sz);
+        let mut rng = ChaCha8Rng::seed_from_u64(67);
+        let weights_random = random_mat(&mut rng, in_sz, out_sz);
+
         let weights = Tensor::from_vec(
             weights_random.into_iter().flatten().collect(),
             vec![out_sz, in_sz],
