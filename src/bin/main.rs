@@ -1,18 +1,40 @@
 use std::error::Error;
 use tars::*;
 
+// argmax/hardmax algorithm
+pub fn evaluate_accuracy(model: &Sequential, dataset: &[Data]) -> f32 {
+    let mut correct = 0;
+
+    for sample in dataset {
+        let pred = model.forward(&sample.input);
+
+        let pred_digit = (0..10)
+            .max_by(|&a, &b| pred.get(&[a]).total_cmp(&pred.get(&[b])))
+            .unwrap();
+
+        let target_digit = (0..10)
+            .max_by(|&a, &b| sample.target.get(&[a]).total_cmp(&sample.target.get(&[b])))
+            .unwrap();
+
+        if pred_digit == target_digit {
+            correct += 1;
+        }
+    }
+
+    (correct as f32 / dataset.len() as f32) * 100.0
+}
+
 fn main() -> Result<(), Box<dyn Error>> {
-    let mut train = experiments::xor::train();
+    let mut train = experiments::mnist::train();
 
     println!("Starting {:?} experiment...", train.experiment_type);
-    println!("Check docs/experiments/ to view experiments API.");
 
     let step = (train.epochs / 20).max(1);
     let optimizer = BGD::new(train.lr);
     let mut prev_cost = cost(&train.model, &train.dataset);
     println!("epoch: 000000, cost is:{:014.8}", prev_cost);
 
-    let mut loader = DataMiniBatches::new(&train.dataset, 1, 42);
+    let mut loader = DataMiniBatches::new(&train.dataset, 256, 42);
 
     for i in 1..=train.epochs {
         for batch in loader.iter_epoch() {
@@ -39,9 +61,10 @@ fn main() -> Result<(), Box<dyn Error>> {
     export_model(&train.model, &scales)?;
     export_inference(&train.model, &train.dataset)?;
 
-    // Export the network topology to a .png
-    // let mut net = NetGraph::new(train.model, &train.dataset[0].input);
-    // net.network_to_graph()?;
-    // net.plot();
+    println!(
+        "Accuracy: {:.2}%",
+        evaluate_accuracy(&train.model, &train.dataset)
+    );
+
     Ok(())
 }

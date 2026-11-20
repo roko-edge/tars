@@ -23,3 +23,5 @@ npu/data/*.mem
 # Local FPGA Synthesis Laboratory (git-ignored)
 synthesis/
 
+# raw data
+mnist-data/

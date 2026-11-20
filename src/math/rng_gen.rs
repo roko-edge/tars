@@ -1,12 +1,6 @@
 use rand::RngExt;
-
-pub fn random_vec(len: usize) -> Vec<f32> {
-    let mut vector = vec![0.0; len];
-    for e in &mut vector {
-        *e = rand::random::<f32>() * 2.0 - 1.0;
-    }
-    vector
-}
+use rand::prelude::*;
+use rand::rngs::ChaCha8Rng;
 
 // rand::random_range() function generates a distribution with mean 1/2 and variance 1/12. But,
 // our goal is to produce a pseudo-rng with mean 0 and variance 1 - according to xavier glorot. So,
@@ -17,7 +11,10 @@ pub fn random_vec(len: usize) -> Vec<f32> {
 // So, prng fn generates a distribution with mean 0 and var 1 - exactly what we want.
 
 pub fn prng(low: f32, high: f32) -> f32 {
-    let u: f32 = rand::random_range(low..high);
+    // SEED
+    let mut rng_seed = ChaCha8Rng::seed_from_u64(67);
+    // RNG
+    let u: f32 = rng_seed.random_range(low..high);
     3.0_f32.sqrt() * (2.0 * u - 1.0)
 }
 
@@ -58,7 +55,7 @@ pub fn ternary_rng() -> f32 {
 pub fn random_mat(lenx: usize, leny: usize) -> Vec<Vec<f32>> {
     let mut mat = vec![vec![0.0; lenx]; leny];
     for l in &mut mat {
-        *l = random_vec(lenx);
+        *l = xavier(lenx);
     }
     mat
 }

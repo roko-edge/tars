@@ -54,6 +54,7 @@ The contract for `Loss::backward` specifies that the returned tensor is the anal
 $$\nabla_{\hat{y}} \mathcal{L} = \frac{\partial \mathcal{L}}{\partial \hat{y}}$$
 
 Supported implementations:
+
 1. **Mean Squared Error (`MSE`):** Retained for OR and XOR baseline regressions:
    $$\mathcal{L}_{\text{MSE}} = \frac{1}{N} \sum_{i=1}^{N} (\hat{y}_i - y_i)^2, \qquad \frac{\partial \mathcal{L}_{\text{MSE}}}{\partial \hat{y}_i} = \frac{2}{N} (\hat{y}_i - y_i)$$
 2. **Softmax Cross-Entropy (`SoftmaxCE`):** Evaluated over raw unnormalized logits for multi-class classification (MNIST):
@@ -99,7 +100,7 @@ The random seed is an explicit recorded parameter. Two training runs configured 
 The wire format exported to hardware memory artifacts is frozen and decoupled from internal tensor representations:
 
 | Artifact | Format | Producer | Consumer |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | `wt.mem` | 2-bit dense ternary (`v = b0 - b1`) | Exporter (`export_model`) | NPU weight memories |
 | `w0.mem` | Q8.24 hexadecimal scalar | Exporter (`export_model`) | NPU epilogue |
 | `program.mem` | 4-word layer descriptor | Exporter (`export_model`) | NPU sequencer |
