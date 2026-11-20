@@ -12,6 +12,7 @@ library and do not establish that planned features are implemented.
 |---|---|---|
 | Inspect implementation progress | [`STATUS.md`](STATUS.md) | Snapshot of components, commands, and limitations |
 | Review planned work and ownership | [`ROADMAP.md`](ROADMAP.md) | Milestones, responsibilities, current assignments, and completion gates |
+| Deliver and harden v0.1.0 | [`V0_DELIVERY_PLAN.md`](V0_DELIVERY_PLAN.md) | Required release evidence, proposed quality work, dependencies, and scope conflicts |
 | Review the tensor core delivery plan | [`TENSOR_PHASE_B.md`](TENSOR_PHASE_B.md) | Work packages, defect backlog, and test matrix for the tensor core |
 | Review the v0.1.0 target | [`V0_CONTRACT.md`](V0_CONTRACT.md) | Release acceptance criteria and future capabilities |
 | Verify project provenance and authorship | [`PROVENANCE.md`](PROVENANCE.md) | Origin, authorship, and development conditions of the public project |
