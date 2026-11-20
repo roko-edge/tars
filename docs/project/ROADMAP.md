@@ -8,19 +8,18 @@ and integration contracts for TARS development.
 
 ---
 
-## Current Assignments
+## What is the current v0.1.0 work?
 
-This section is the live snapshot that answers what each member must do next. The
-numbered sections below remain the normative plan. The snapshot is updated whenever
-a package closes or a gate passes. When a member is idle or blocked, the next
-assignment of the same phase comes first; starting a work package owned by another
-member requires an explicit reassignment by the lead.
+The [v0.1.0 delivery plan](V0_DELIVERY_PLAN.md) records release evidence,
+proposed hardening, and conflicts that need a maintainer disposition. The
+[release contract](V0_CONTRACT.md) governs acceptance. This snapshot uses the
+existing ownership assignments.
 
 | Owner | Current assignment | Definition of done | Unblocks |
 |---|---|---|---|
-| Gustavo | P0 determinism (seeded PRNG in `src/math/rng_gen.rs`, deterministic `ternary_distribution_test`) → MNIST raw dataset parser (`idx-ubyte` ingestion into `Vec<Data>`) → benchmark and statistical validation harness (accuracy, confusion matrix, 95% bootstrap CI for Paper 1) | Seeded PRNG active; MNIST raw parser delivers `Vec<Data>` to batch loader; statistical evaluation harness green | Deterministic test baseline, MNIST training input data, and empirical evaluation for Paper 1 |
-| Gildo | PR #26 (Linear on `Tensor<f32>` + forward cache) and PR #27 (TS-02 `DataMiniBatches`) merged → Track T practical training stack (TS-01: `Loss` trait with MSE and `SoftmaxCE`; TS-03: `Optimizer` trait with BGD and `Adam`) → TS-06 training execution loop (`src/bin/mnist.rs` converging to $\ge 95\%$ float reference) | `Loss` with `SoftmaxCE` passes unit tests; `Adam` optimizer active; `src/bin/mnist.rs` converges $\ge 95\%$ | Float training reference and pre-quantization weights for MNIST release gate |
-| Arthur | v0.1.0 sprint: Track T quantizer and QAT engine (TS-04: absmean + threshold + STE in `src/quant/`); bit-exact golden model + export `wt.mem`/`w0.mem` + Tier 2 `tb_parity.sv` (TS-05); LOG-007 Step 2 remainder (16-bit runtime shape registers); layer manifest format contract | TS-04 PTQ baseline and QAT convergence on OR/XOR/MNIST; TS-05 bit-exact parity verified (`test: test-core test-parity`); zero bit mismatches under Verilator | Bit-exact parity verification and the v0.1.0 release gate |
+| Gustavo | [PENDENTE] Repair the seeded initialization stream, verify the ternary sampler, and make held-out MNIST evaluation reproducible. | Math tests pass. Evaluation preserves sample IDs and records accuracy, the contractual 95% binomial interval, and paired comparison. | Deterministic training and release measurements |
+| Gildo | [PENDENTE] Connect MSE and SoftmaxCE to analytical backward, preserve OR/XOR regressions, and finish the float MNIST baseline with BGD. | Numerical gradient checks pass. The held-out float score reaches the release threshold. | Float reference and reproducible checkpoints for PTQ and QAT |
+| Arthur | [PENDENTE] Close the quantizer contract, implement QAT and the independent integer reference, and verify the assembled wrapper against exact expected words. | The small fixtures and trained MNIST model pass exact parity. The held-out fixed-point score reaches the ternary threshold. | Verified Rust–RTL deployment artifacts and release parity |
 
 ---
 
@@ -198,10 +197,10 @@ The training stack delivers the software capabilities required to train, quantiz
 |---|---|---|---|
 | TS-01 | `Loss` trait: `forward(&logits,&target)->f32` + `backward()->Tensor<f32>` (grad wrt logits). Impls: MSE (OR/XOR kept) + SoftmaxCE (MNIST; grad $p - y$) | Gildo | both losses pass tests; OR/XOR regression green |
 | TS-02 | Batch loader: `Data` → batches with seeded shuffle; batch size parameter; epoch loop | Gildo | two runs with same seed give identical trajectory |
-| TS-03 | Optimizer on tensors: `Optimizer::step(&mut Sequential,&Grad)`; BGD first, Adam implementation with momentum and RMSprop | Gildo | BGD and Adam on `Tensor<f32>` functional and tested |
+| TS-03 | `Optimizer::step(&mut Sequential,&Grad)` with BGD as the v0.1.0 optimizer of record | Gildo | BGD on `Tensor<f32>` is functional and tested. Adam is an optional follow-up. |
 | TS-04 | Quantizer (absmean + threshold + STE) + QAT engine (quantized-weight forward, STE backward) | Arthur | PTQ baseline measured; QAT converges on ternary OR/XOR |
-| TS-05 | Bit-exact golden model + export `wt.mem`/`w0.mem` + `tb_parity` | Arthur | bit-exact parity; `test: test-core test-parity` |
-| TS-06 | MNIST end-to-end release gate: raw byte loader (Gustavo), training loop converging $\ge 95\%$ (Gildo), ternary QAT $> 90\%$ + parity (Arthur), bootstrap 95% CI (Gustavo) | all three | v0.1.0 release gate |
+| TS-05 | Bit-exact integer reference, validated export, and `tb_parity` | Arthur | Zero mismatched words on the trained MNIST fixture. The release revision passes RTL lint, Tier 1 and Tier 2. |
+| TS-06 | MNIST release evidence: held-out evaluation (Gustavo), float accuracy $\ge 95\%$ (Gildo), fixed-point ternary accuracy $> 90\%$ and parity (Arthur), 95% binomial confidence interval and paired comparison (Gustavo) | all three | The evidence satisfies the [release contract](V0_CONTRACT.md). |
 
 ---
 
