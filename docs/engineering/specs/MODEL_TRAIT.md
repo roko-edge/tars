@@ -15,7 +15,7 @@ evaluation, the intermediates that the backward clauses require, and `backward`
 consumes the recorded trace; a second evaluation of the forward chain inside the
 backward pass is not admitted.
 
-**Implementation [CONFLITO], 2026-11-21:** `Sequential::forward_cache` stores a
+**Implementation [CONFLICT], 2026-11-21:** `Sequential::forward_cache` stores a
 flat trace of `Tensor<f32>` values. The free `backward` function consumes that
 trace in reverse module order. The trait currently exposes `forward` alone.
 The [delivery plan](../../project/V0_DELIVERY_PLAN.md#4-which-decisions-need-an-explicit-disposition)

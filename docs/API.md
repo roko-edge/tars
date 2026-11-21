@@ -45,11 +45,11 @@ records the differences in backward composition.
 | `cost` | Computes mean squared error over outputs and samples | Empty or dimensionally inconsistent data is not guarded |
 | `Sequential::forward_cache` | Records the input and each module output as `Tensor<f32>` | The caller owns the cache for the training step |
 | `Loss`, `MSE`, `SoftmaxCE` | Evaluate float objectives and produce an output gradient | SoftmaxCE expects raw logits. See the delivery plan for the forward and gradient discrepancy at extreme logits |
-| `backward` | Walks the flat module list in reverse using a rank-two batch and its `ForwardCache`. Returns parameter gradients indexed by module | [CONFLITO] The implementation overwrites the selected loss gradient with an MSE derivative |
+| `backward` | Walks the flat module list in reverse using a rank-two batch and its `ForwardCache`. Returns parameter gradients indexed by module | [CONFLICT] The implementation overwrites the selected loss gradient with an MSE derivative |
 | `BGD`, `Adam` | Apply gradient updates to float parameters | Callers must pair compatible model, optimizer state, and gradient structures |
 
 The executable owns the training loop. The finite-difference verification gate
-and the QAT training step are tracked in the [delivery plan](project/V0_DELIVERY_PLAN.md#22-how-do-we-restore-trustworthy-training-pendente).
+and the QAT training step are tracked in the [delivery plan](project/V0_DELIVERY_PLAN.md#22-how-do-we-restore-trustworthy-training-pending).
 
 ---
 
@@ -62,7 +62,7 @@ and the QAT training step are tracked in the [delivery plan](project/V0_DELIVERY
 | `export_inference` | Writes Q8.24 inputs and serialized float predictions | Uses fixed paths under `npu/data/`. The predictions come from float execution |
 | `NetGraph` | Extracts linear-layer nodes and edges and emits Graphviz artifacts | Activations and biases are not represented |
 
-Exact numeric parity is tracked in the [delivery plan](project/V0_DELIVERY_PLAN.md#24-how-do-export-and-rtl-establish-exact-parity-pendente).
+Exact numeric parity is tracked in the [delivery plan](project/V0_DELIVERY_PLAN.md#24-how-do-export-and-rtl-establish-exact-parity-pending).
 
 ---
 
@@ -82,7 +82,7 @@ surface:
 | `Tensor::make_contiguous` | Re-packs a non-contiguous view into a canonical buffer; shares the storage of an already contiguous source | Carries an identifier distinct from the `contiguous` operation of the specification; no test coverage |
 | `Tensor::add`, `sub`, `mul`, `div` and their in-place variants | Pointwise operations over two tensors, honouring the stride vectors | Shape-mismatch violations are reported through empty diagnostics |
 | `Tensor::mul_scalar`, `div_scalar` and their in-place variants | Pointwise float scalar multiplication and division | Scalar division rejects zero |
-| `Tensor::map`, `map_mut` | Apply a callable in logical element order | The [delivery plan](project/V0_DELIVERY_PLAN.md#31-how-should-the-tensor-core-handle-views-and-bulk-operations-proposto) tracks dense slices and stateful callbacks for the bulk path |
+| `Tensor::map`, `map_mut` | Apply a callable in logical element order | The [delivery plan](project/V0_DELIVERY_PLAN.md#31-how-should-the-tensor-core-handle-views-and-bulk-operations-proposed) tracks dense slices and stateful callbacks for the bulk path |
 | `Tensor::sum` | Full reduction across all logical coordinates | Terminates on a rank-zero operand through the iteration helper |
 | `MatMul`, `Tensor::matvec`, `Tensor::outer` | Float products honoring strides. A mixed float/ternary matrix product is also available | The mixed product uses raw trits and has no layer scale |
 | `Tensor::storage`, `Tensor::storage_ref` | Clone or borrow the associated backing storage | The raw buffer follows physical storage order |

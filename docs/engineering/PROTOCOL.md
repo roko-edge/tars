@@ -19,7 +19,7 @@ do button conditioning: consumers drive clean pulses.
 
 ---
 
-## What is the contract? [DECIDIDO]
+## What is the contract? [DECIDED]
 
 | # | Clause |
 |---|---|
@@ -82,13 +82,13 @@ sequencing. It merges into the future `sequencer` (deferred to v0.1.1, LOG-008) 
 
 ## Status
 
-- [DECIDIDO] — the seven clauses above. Aligned with the RTL as of the
+- [DECIDED] — the seven clauses above. Aligned with the RTL as of the
   October 2026 wrapper commit: the arbitration FSM (`start && state == IDLE`
   launch, `state == RUN && done` return) and the single-driver `done` are
   implemented in `npu/src/npu.sv`; `make lint` (top `npu`) exits zero.
-- [DECIDIDO] — `layer_engine.sv` drives `done` as a one-cycle registered pulse
+- [DECIDED] — `layer_engine.sv` drives `done` as a one-cycle registered pulse
   (`done <= (state == WRITE) && (j == OUT-1)`); no `done <= 0` assignment
   remains in the engine or the wrapper.
-- [PROPOSTO] cosmetics: wrapper FSM type (own `wrap_state_t` vs reuse
+- [PROPOSED] cosmetics: wrapper FSM type (own `wrap_state_t` vs reuse
   `npu_pkg::state_t`); declarations before instances; drop redundant `npu_pkg::`
   prefixes (the header wildcard import covers the whole module).
