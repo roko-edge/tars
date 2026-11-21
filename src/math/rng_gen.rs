@@ -1,5 +1,5 @@
+use rand::RngExt;
 use rand::rngs::ChaCha8Rng;
-use rand::{RngExt, SeedableRng};
 
 // rand::random_range() function generates a distribution with mean 1/2 and variance 1/12. But,
 // our goal is to produce a pseudo-rng with mean 0 and variance 1 - according to xavier glorot. So,
