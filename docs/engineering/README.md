@@ -11,7 +11,7 @@ not establish that a planned capability is available.
 | Objective | Document | State |
 |---|---|---|
 | Understand the current repository structure | [`ARCHITECTURE.md`](ARCHITECTURE.md) | Current implementation record |
-| Review implemented architectural decisions | [`DECISIONS.md`](DECISIONS.md) | Implemented decisions only |
+| Review architectural decisions | [`DECISIONS.md`](DECISIONS.md) | Implemented decisions and explicitly superseded history |
 | Inspect the Rust-to-RTL artifact format | [`MEM_FORMAT.md`](MEM_FORMAT.md) | Current format with shared `npu/data/` paths |
 | Review board integration and synthesis architecture | [`BOARD_INTEGRATION.md`](BOARD_INTEGRATION.md) | Board integration architecture and local lab specification |
 | Evaluate the observability design | [`OBSERVABILITY_PROPOSAL.md`](OBSERVABILITY_PROPOSAL.md) | Proposal, not implemented |

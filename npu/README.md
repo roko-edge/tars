@@ -1,8 +1,9 @@
 # SystemVerilog NPU Prototype
 
-This directory contains the ternary neural processing unit (NPU) RTL of the
-v0.1.0 release engine and its testbench. The toolchain is Verilator-only; Icarus
-Verilog is not used by any target in this directory.
+This directory contains the dense ternary neural processing unit (NPU) RTL
+for v0.1.0 and the Verilator simulation targets. Tier 1 runs hand-calculated
+self-checks. The assembled Tier 2 bench is present and exact Rust–RTL parity
+remains a release gate.
 
 ## Files
 
@@ -14,11 +15,10 @@ Verilog is not used by any target in this directory.
 | `src/epilogue.sv` | Per-neuron post-processing: 96-bit $W_0$ product, arithmetic shift by 24, two saturations, bias, activation |
 | `src/layer_engine.sv` | Single-layer engine: `IDLE`/`RUN`/`WRITE` FSM driving one `pe` and one `epilogue`, with the linear weight-stream pointer (rule R1) |
 | `src/npu.sv` | Per-network wrapper: two `layer_engine` instances chained into an MLP (defaults 784→64→10); see "What is `npu.sv`?" below |
-| `tests/tb.sv` | Testbench: clock, reset, `$readmemh` of the data files, waveform dump, result display. Self-checking assertions are pending |
-| `data/activations.mem` | Q8.24 hexadecimal activation words (8 entries for 4 evaluation pairs) |
-| `data/weights.mem` | Legacy dense Q8.24 hexadecimal weight words. **Format mismatch:** the engine consumes 2-bit ternary codes; see Current Limitations |
-| `data/bias.mem` | Q8.24 hexadecimal bias word |
-| `data/target.mem` | Q8.24 hexadecimal target outputs (dataset labels, not golden vectors) |
+| `tests/tb.sv` | Legacy single-layer smoke test with waveform output and displayed results |
+| `tests/tb_core.sv` | Tier 1 self-checking tests with hand-calculated results |
+| `tests/tb_parity.sv` | Tier 2 assembled MNIST-sized comparison bench |
+| `data/` | Legacy smoke inputs and memory files for the assembled bench. [Artifact formats](../docs/engineering/MEM_FORMAT.md) |
 | `files.f` | Single source list of RTL files, shared by the Makefile and the LSP |
 | `Makefile` | Simulation (`sim`), test (`test`), waveform inspection (`wave`), linting (`lint`), and cleanup |
 
@@ -33,13 +33,10 @@ start ──► u_l0 (784→64, RELU) ──l0_done──► u_l1 (64→10, IDEN
           l0_w, l0_b, l0_w0                  l1_w, l1_b, l1_w0
 ```
 
-The default parameters shape the MNIST release network ($784 \to 64 \to 10$),
-but the topology is configuration, not code: dimensions are elaboration
-parameters and the weights, biases, and per-layer $W_0$ arrive over ports. A
-different MLP is the same file with different parameters. Layer 1 is started
-
-by the `done` pulse of layer 0 — the `start`/`done` events of
-[`PROTOCOL.md`](../docs/engineering/PROTOCOL.md) chain layers exactly once.
+The default parameters shape the MNIST release network ($784 \to 64 \to 10$).
+Elaboration parameters change the dimensions of this two-layer topology.
+Weights, biases, scales, and activation selections arrive over ports. The
+`done` pulse of layer 0 starts layer 1. [Handshake contract](../docs/engineering/PROTOCOL.md)
 
 This wrapper is the manual-composition reference of Layer 2 in
 [`ASSEMBLY_AND_TEST_MODEL.md`](../docs/engineering/ASSEMBLY_AND_TEST_MODEL.md),
@@ -53,8 +50,8 @@ arbitrates requests while data is in flight. See
 
 ## Interface and Arithmetic
 
-The testbench instantiates `layer_engine` with parameters `IN = 2` and
-`OUT = 1`. Ports are explicit at the top level: activation array `a`, 2-bit
+The legacy smoke test instantiates `layer_engine` with parameters `IN = 2` and
+`OUT = 1`. The engine exposes an activation array `a`, 2-bit
 ternary weight array `w`, bias array `b`, the per-layer scale `w0` (Q8.24), the
 `act_fn` selector, and the `result` / `done` handshake.
 
@@ -102,6 +99,7 @@ make lint        # verilator --lint-only -Wall over files.f (top: npu — wrappe
 make sim         # Legacy smoke: compiles (files.f + tests/tb.sv) and runs without assertions
 make test        # Runs Tier 1 testbench (test-core); propagates exit code ($fatal on mismatch)
 make test-core   # Compiles and runs tests/tb_core.sv with self-checking assertions
+make test-parity # Runs the assembled comparison bench with matching memory files
 make wave        # Opens GTKWave with build/dump.vcd
 make clean       # Removes the build/ directory
 ```
@@ -109,12 +107,10 @@ make clean       # Removes the build/ directory
 `files.f` is the single source of the RTL file list (`npu_pkg.sv` first); the
 Makefile and the language server consume the same list.
 
-The build tolerates warnings so the simulation always runs; `make lint` is the
-quality gate and must exit zero with no `WIDTHTRUNC`/`WIDTHEXPAND`/`UNDRIVEN`
-findings (currently exits zero). `make test` defaults to `test-core` (Tier 1:
-`tests/tb_core.sv`), which executes self-checking assertions and calls `$fatal`
-on any mismatch. Tier 2 golden-vector assertions (`tests/tb_parity.sv`) await
-the Rust bit-exact model and exporter (implementation Step 1).
+The simulation build uses `-Wno-fatal` for warnings. `make lint` is the
+separate strict lint gate. CI runs lint and Tier 1. `make test` defaults to
+`test-core`, which calls `$fatal` on a mismatch.
+[CI workflow](../.github/workflows/ci.yml)
 
 ## Tests
 
@@ -126,8 +122,8 @@ Section 5:
 
 | Tier | Scope | Golden source | State |
 |---|---|---|---|
-| ① `tb_core` | Primitives, `layer_engine`, and `npu` wrapper in isolation | Hand-computed values in the testbench | `tests/tb_core.sv` instantiates `npu` with assertions (`$fatal` on mismatch); active and green under `make test-core` / `make test` |
-| ② `tb_parity` | `layer_engine` against the Rust golden model | Exporter vectors (bit-exact path) | Not implemented; blocked on the Step 1 exporter |
+| ① `tb_core` | Ternary primitives and the assembled wrapper | Hand-computed values in the testbench | Implemented under `make test-core` / `make test` |
+| ② `tb_parity` | Assembled `784 → 64 → 10` wrapper | Current development inputs and float-derived expectations. Release requires the independent Rust integer reference. | [PENDING] Bench and command exist. The comparator allows one LSB and must become an exact word comparison. |
 | ③ `tb_shell` | Programmable top: sequencer, memories, I/O | System-level golden + `program.mem` | Deferred to v0.1.1 (LOG-008) |
 
 The wrapper `npu.sv` is verified by Tier 1 self-checking simulation
@@ -136,23 +132,15 @@ evaluation passes.
 
 ## Current Limitations
 
-- **Weight file format mismatch:** `data/weights.mem` holds legacy dense
-  Q8.24 32-bit words, while `layer_engine` consumes 2-bit ternary codes
-  ($v = b_0 - b_1$). Reading the legacy file into the 2-bit array truncates
-  each word to its two low bits. The ternary weight export (`wt.mem`) arrives
-  with implementation Step 1; until then the testbench needs hand-written
-  ternary codes or literal weights.
-- **Tier 2 assertions pending:** Tier 1 has active self-checking assertions in
-  `tests/tb_core.sv`. Tier 2 golden-vector parity assertions
-  (`tests/tb_parity.sv`) against the Rust bit-exact reference await
-  implementation Step 1.
-- **Elaboration-time shapes:** `IN`, `H`, and `OUT` are still elaboration
-  parameters. The 16-bit runtime shape registers are Step 2 (LOG-007,
-  Section 4.2).
+- The legacy `weights.mem` contains dense Q8.24 words. The smoke bench reads
+  their low two bits into its ternary array. The assembled bench uses `wt.mem`.
+  [Current and legacy artifacts](../docs/engineering/MEM_FORMAT.md)
+- `IN`, `H`, and `OUT` are elaboration parameters. Runtime shapes and the
+  programmable sequencer are deferred to v0.1.1.
+  [Scope decision](../docs/project/research/LOG-008-v0_governance_and_release_decisions.md#2-maintainer-decisions-november-2026)
 
 ## Memory Representation
 
-`$readmemh` loads memory files directly into signed 32-bit Q8.24 arrays (the
-2-bit weight array excepted). The Rust export module (`src/export.rs`) writes
-the Q8.24 hexadecimal values. See
-[`MEM_FORMAT.md`](../docs/engineering/MEM_FORMAT.md) for full format details.
+The assembled bench loads 2-bit ternary weight codes and signed 32-bit Q8.24
+scales, biases, inputs, and expected outputs with `$readmemh`.
+[Memory encodings and file order](../docs/engineering/MEM_FORMAT.md)

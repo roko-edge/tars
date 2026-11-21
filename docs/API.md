@@ -1,8 +1,8 @@
 # Current Public API
 
-This document identifies the implemented public surface of the TARS Rust package.
-It is a usage reference, not a stability guarantee. Internal design targets are
-maintained under [`engineering/`](engineering/README.md).
+This document identifies the implemented public surface of the TARS Rust
+package at source revision `e7b7f64`. Internal design targets are maintained under
+[`engineering/`](engineering/README.md).
 
 ---
 
@@ -16,7 +16,7 @@ maintained under [`engineering/`](engineering/README.md).
 | `ExperimentType` | Identifies OR, XOR, MNIST, or a custom configuration | Callers select the factory explicitly |
 | `experiments::or::train()` | Creates the built-in OR configuration | Each linear constructor starts the same fixed seed and initializes biases to zero |
 | `experiments::xor::train()` | Creates the built-in XOR configuration | The main binary does not select it currently |
-| `experiments::mnist::train()` | Creates the MNIST configuration from training images and labels | The configured model has a single affine layer |
+| `experiments::mnist::train()` | Creates a model and one-hot targets from the MNIST training split | The topology and hyperparameters come from the experiment factory and can change by revision. [Experiment configurations](EXPERIMENTS.md#built-in-experiments) |
 
 See [`EXPERIMENTS.md`](EXPERIMENTS.md) for topologies, datasets, and execution behavior.
 
@@ -27,7 +27,7 @@ See [`EXPERIMENTS.md`](EXPERIMENTS.md) for topologies, datasets, and execution b
 | Resource | Implemented operations | Important constraint |
 |---|---|---|
 | `Module` | Forward evaluation from `&Tensor<f32>` to `Tensor<f32>` | The trait currently exposes `forward` |
-| `Sequential` | Construction, linear layers, ReLU, sigmoid, and forward evaluation | Supports an ordered linear chain only |
+| `Sequential` | `new(input_size, first_output_size)` creates the first dense layer. The consuming builder appends linear layers, ReLU, and sigmoid | Supports an ordered chain and records a training trace through `forward_cache` |
 | `Linear` | Construction from explicit parameters, zeros, or seeded initialization | The explicit constructor checks weight and bias shapes. Forward accepts one sample or a rank-two batch |
 | `Activation` | ReLU and sigmoid evaluation | No additional activation variants are implemented |
 | `AnyModule` | Runtime dispatch over linear and activation modules | Typed accessors panic when used with the wrong variant |
@@ -45,7 +45,7 @@ records the differences in backward composition.
 | `cost` | Computes mean squared error over outputs and samples | Empty or dimensionally inconsistent data is not guarded |
 | `Sequential::forward_cache` | Records the input and each module output as `Tensor<f32>` | The caller owns the cache for the training step |
 | `Loss`, `MSE`, `SoftmaxCE` | Evaluate float objectives and produce an output gradient | SoftmaxCE expects raw logits. See the delivery plan for the forward and gradient discrepancy at extreme logits |
-| `backward` | Walks the flat module list in reverse using a rank-two batch and its `ForwardCache`. Returns parameter gradients indexed by module | [CONFLICT] The implementation overwrites the selected loss gradient with an MSE derivative |
+| `backward` | Walks the flat module list in reverse using a rank-two batch and its `ForwardCache`. Returns parameter gradients indexed by module | [CONFLICT] The implementation overwrites the selected loss gradient with an MSE derivative. |
 | `BGD`, `Adam` | Apply gradient updates to float parameters | Callers must pair compatible model, optimizer state, and gradient structures |
 
 The executable owns the training loop. The finite-difference verification gate
@@ -60,7 +60,7 @@ and the QAT training step are tracked in the [delivery plan](project/V0_DELIVERY
 | `to_q8_24` | Converts an `f32` value to the current Q8.24 word representation | Uses truncation rather than round-half-to-even |
 | `export_model` | Writes dense ternary codes and Q8.24 scales and biases | Accepts scales in linear layer order. The artifacts omit topology and activations |
 | `export_inference` | Writes Q8.24 inputs and serialized float predictions | Uses fixed paths under `npu/data/`. The predictions come from float execution |
-| `NetGraph` | Extracts linear-layer nodes and edges and emits Graphviz artifacts | Activations and biases are not represented |
+| Visualization | [PENDING] The `visualization` binary is a stub and `view` is outside the exported library surface | [Visualization status](VISUALIZATION.md) |
 
 Exact numeric parity is tracked in the [delivery plan](project/V0_DELIVERY_PLAN.md#24-how-do-export-and-rtl-establish-exact-parity-pending).
 
@@ -83,7 +83,7 @@ surface:
 | `Tensor::add`, `sub`, `mul`, `div` and their in-place variants | Pointwise operations over two tensors, honouring the stride vectors | Shape-mismatch violations are reported through empty diagnostics |
 | `Tensor::mul_scalar`, `div_scalar` and their in-place variants | Pointwise float scalar multiplication and division | Scalar division rejects zero |
 | `Tensor::map`, `map_mut` | Apply a callable in logical element order | The [delivery plan](project/V0_DELIVERY_PLAN.md#31-how-should-the-tensor-core-handle-views-and-bulk-operations-proposed) tracks dense slices and stateful callbacks for the bulk path |
-| `Tensor::sum` | Full reduction across all logical coordinates | Terminates on a rank-zero operand through the iteration helper |
+| `Tensor::sum` | Full reduction across all logical coordinates | [CONFLICT] Rank-zero tensors are admitted by the spec. The logical iterator used by `sum` currently panics on a rank-zero operand. |
 | `MatMul`, `Tensor::matvec`, `Tensor::outer` | Float products honoring strides. A mixed float/ternary matrix product is also available | The mixed product uses raw trits and has no layer scale |
 | `Tensor::storage`, `Tensor::storage_ref` | Clone or borrow the associated backing storage | The raw buffer follows physical storage order |
 

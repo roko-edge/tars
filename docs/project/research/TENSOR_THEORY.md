@@ -683,12 +683,12 @@ during this document's preparation in October 2026; they are not test results.
 
 | Topic | TARS context | Distinction from the general theory |
 |---|---|---|
-| Geometry | [`src/math/tensor.rs`](../../../src/math/tensor.rs) declares shape, strides, and offset as `usize` metadata | The stored strides cannot express negative-stride reversal |
+| Geometry | [`src/tensor/tensor_core.rs`](../../../src/tensor/tensor_core.rs) declares shape, strides, and offset as `usize` metadata | The stored strides cannot express negative-stride reversal |
 | Addressing | The source uses offset plus the coordinate–stride products to select storage elements | These displacements are not byte counts |
 | Storage | The inspected tensor field is `Arc<Vec<T>>`; `Element` also declares an associated storage type | The generic field alone does not establish the specification's packed per-type storage representation |
 | Sharing | The source shares the `Arc` for transpose and uses `Arc::make_mut` for element writes | A TARS write need not be visible through another previously shared descriptor |
 | Contiguity | The target contract requires canonical C-order strides and offset zero; the inspected predicate also requires nonempty backing storage | This is stricter than common layout-only contiguity and does not prove exclusive ownership |
-| Ternary representation | The specification describes packed `T3`; [`ternary_tensor.rs`](../../../src/math/ternary_tensor.rs) contains a preliminary type and packing notes | Section 12 explains the target representation, not completed packed tensor access |
+| Ternary representation | The specification describes packed `T3`; [`ternary_tensor.rs`](../../../src/tensor/ternary_tensor.rs) contains a preliminary type and packing notes | Section 12 explains the target representation, not completed packed tensor access |
 | Ternary views | The target contract adds multiples-of-four alignment constraints on offset and strides | Mathematically addressable packed elements are not automatically valid project views |
 | Extended operations | General slicing, permutation, reshape, axis reductions, and multidimensional broadcasting are deferred in the specification | Their theoretical descriptions here do not extend the supported API |
 | Data exchange | `TensorData` and its transfer methods are specified in the target contract | A theoretical exchange model does not certify implemented export behavior |

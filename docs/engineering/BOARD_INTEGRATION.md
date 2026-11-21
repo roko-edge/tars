@@ -28,7 +28,7 @@ A board wrapper instantiates `npu` and connects it to physical pins. The contrac
 | `clk` | Input | `logic` | System clock |
 | `rst` | Input | `logic` | Asynchronous, active-high reset |
 | `start` | Input | `logic` | Starts an inference pass |
-| `activation` | Input | `logic [1:0]` | Activation selector (1 = ReLU, 2 = sigmoid) |
+| `l0_act_fn`, `l1_act_fn` | Input | `npu_pkg::activation_t` | Per-layer activation selectors. Identity and ReLU are implemented. Sigmoid is reserved. |
 | `done` | Output | `logic` | Asserted when `result` is committed |
 | `result` | Output | `logic signed [31:0] [OUT]` | Output vector in Q8.24 |
 
@@ -108,10 +108,12 @@ configuration is needed inside the Vivado environment.
 
 ## 7. Known Limitations
 
-The NPU memories (`b`, `w`, `a`) are populated only by the simulation testbench
-through hierarchical references. Hardware builds do not load weights until the core
-provides synthesis-time initialization; on-board inference results are undefined
-until that initialization is added to the NPU sources by the maintainers.
+The simulation benches populate arrays and drive the RTL through explicit
+ports. A board wrapper must supply the selected weights, scales, biases, and
+input activations through those ports. The versioned flow provides simulation
+and lint commands. Board inference requires a matching local integration and
+observed results for that hardware build.
+[Board evidence requirements](../project/V0_DELIVERY_PLAN.md#33-what-should-roko-be-able-to-consume-proposed)
 
 The activation unit implements ReLU only. Selecting sigmoid (`activation = 2`) routes
 the saturated sum unchanged, so the sigmoid output layer of the built-in experiments

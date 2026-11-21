@@ -8,7 +8,7 @@
 
 <p align="center">
   Experimental neural networks in Rust.<br />
-  A Q8.24 affine-layer prototype in SystemVerilog.
+    A ternary inference prototype in SystemVerilog.
 </p>
 
 <p align="center">
@@ -20,14 +20,16 @@
 
 ---
 
-`tars` is an experimental neural-network implementation written in Rust alongside a
-SystemVerilog affine-layer prototype. The Rust code provides dense layers, ReLU and
-sigmoid activations, sequential model composition, mean squared error, analytical and
-finite-difference gradients, and batch gradient descent.
+TARS pairs a Rust training library with a dense ternary SystemVerilog inference
+prototype. The library provides typed float tensors, sequential dense models,
+ReLU and sigmoid, analytical backpropagation, MSE and SoftmaxCE, and BGD and
+Adam. The training binary selects MNIST in source.
 
-The Rust exporter writes Q8.24 weights, biases, activations, and targets under
-`npu/data/`. The NPU testbench consumes the first three; model topology is not
-exported, and results are not validated against the targets.
+The explicit exporter writes ternary weight codes and Q8.24 scales, biases,
+and inference data under `npu/data/`. The two-layer RTL wrapper is assembled
+at elaboration. Exact parity with an independent Rust integer reference is a
+v0.1.0 release gate. [Memory format](docs/engineering/MEM_FORMAT.md) ·
+[Release gates](docs/project/V0_DELIVERY_PLAN.md#21-which-results-close-the-release-gate)
 
 ## Requirements
 
@@ -39,37 +41,21 @@ nix develop .#rust      # Rust and visualization tools
 nix develop .#hardware  # Verilator, GTKWave, Verible (the NPU flow is Verilator-only)
 ```
 
-Without Nix, install a Rust 2024 toolchain and Graphviz. The package depends on
-`rand`, `petgraph`, and `yaml-rust2`. The NPU commands require GNU Make,
-Verilator, and GTKWave as applicable; the NPU flow is Verilator-only.
+Without Nix, use a Rust toolchain supporting edition 2024. Install GNU Make
+and Verilator for the RTL flow, and GTKWave for waveform inspection.
+[Environment setup](docs/GETTING_STARTED.md#1-environment)
 
 ## Rust
 
 ```bash
-cargo build
-cargo run --bin main
-cargo run --bin visualization
+cargo build --lib --bins
+cargo run --release --locked --bin main
 cargo test
 ```
 
-`main` runs the OR experiment selected in source, trains the model, and prints its
-predictions. The export calls that would write the four `.mem` files under `npu/data/`
-are commented out in the source, so a run does not modify the checked-in artifacts.
-The binary then extracts the network topology and writes `src/view/artifacts/graph.dot`
-and `src/view/artifacts/network.png` through Graphviz; the directory is not created
-automatically and is absent in a fresh clone, so the run terminates with a file error
-after the predictions are printed. There is no runtime experiment selector.
-
-`visualization` writes `src/view/artifacts/graph.dot` and invokes Graphviz to create
-`src/view/artifacts/network.png`. It renders its own hard-coded model rather than the
-model trained by `main`. Both binaries require a pre-existing writable
-`src/view/artifacts/` directory and a Graphviz `dot` executable on `PATH`.
-
-The active Rust tests cover 14 test cases across PRNG, initialization, ternary sampling,
-and strided tensor kernels. The suite is not yet fully deterministic: the distribution tests
-sample the unseeded global generator, and the ternary-distribution test asserts a
-variance bound at the true value of its distribution, so it fails intermittently (PRNG seed
-support is P0 for Phase 1).
+`main` reports training progress and evaluates on the MNIST training split.
+Experiment configuration comes from the selected factory. Hardware export and
+visualization are separate from this command. [Training guide](docs/GETTING_STARTED.md#3-run-the-training-binary)
 
 ## SystemVerilog
 
@@ -83,10 +69,9 @@ make lint    # Verilator lint-only quality gate (top: npu)
 make clean   # Cleans build artifacts
 ```
 
-`make test` compiles and executes the Tier 1 self-checking testbench
-(`tests/tb_core.sv`), terminating with `$fatal` on any mismatch. `make sim` runs
-the legacy smoke testbench (`tests/tb.sv`). See [`npu/README.md`](npu/README.md)
-for the three-tier test model and limitations.
+`make test` runs the Tier 1 hand-calculated checks. The separate `test-parity`
+target runs the assembled MNIST-sized bench and requires matching memory
+files. Its current comparison is a development check. [RTL commands and test states](npu/README.md#tests)
 
 ## Documentation
 

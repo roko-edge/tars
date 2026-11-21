@@ -1,7 +1,8 @@
 # Specification: Training Stack and Execution Contracts
 
 **Document type:** Engineering specification (normative contract).
-**Status:** Normative contract.
+**Status:** Normative target contract. The [public API](../../API.md#3-training-operations)
+describes the implemented training interface and known deviations.
 **Revision date:** 2026-11-02 (maintainer decision).
 **Owns:** Frozen software training interfaces across model evaluation, loss computation, gradient tracking, optimizer step execution, batch loading, and the wire export boundary.
 **Does not cover:** Mathematical quantization operators ([`QUANT.md`](QUANT.md)), tensor memory strides ([`TENSOR.md`](TENSOR.md)), or hardware-side FSM execution ([`ARITHMETIC_Q8_24.md`](ARITHMETIC_Q8_24.md)).
@@ -97,17 +98,12 @@ The random seed is an explicit recorded parameter. Two training runs configured 
 
 ### 1.5 Stable Wire Export Boundary
 
-The wire format exported to hardware memory artifacts is frozen and decoupled from internal tensor representations:
-
-| Artifact | Format | Producer | Consumer |
-| --- | --- | --- | --- |
-| `wt.mem` | 2-bit dense ternary (`v = b0 - b1`) | Exporter (`export_model`) | NPU weight memories |
-| `w0.mem` | Q8.24 hexadecimal scalar | Exporter (`export_model`) | NPU epilogue |
-| `program.mem` | 4-word layer descriptor | Exporter (`export_model`) | NPU sequencer |
-| `activations.mem` | Q8.24 hexadecimal words | Exporter (`export_data`) | NPU testbench input |
-| `target.mem` | Q8.24 hexadecimal words | Exporter (`export_data`) | NPU testbench assertion |
-
-Internal refactoring of `Tensor<T>` never alters this wire serialization contract.
+The wire format is independent of the storage used by `Tensor<T>`. The
+[memory format reference](../MEM_FORMAT.md) records the current artifact
+names, encodings, producers, and consumers. v0.1.0 uses an assembled wrapper
+and independent integer expected outputs for release parity. `program.mem`
+belongs to the programmable top in v0.1.1.
+[Scope decision](../../project/research/LOG-008-v0_governance_and_release_decisions.md#2-maintainer-decisions-november-2026)
 
 ### 1.6 Quantizer and Straight-Through Estimation
 

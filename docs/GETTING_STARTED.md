@@ -29,67 +29,45 @@ Without Nix, provide a Rust 2024 toolchain and the corresponding system tools ma
 Run commands from the repository root:
 
 ```bash
-cargo build
+cargo build --lib --bins
+cargo test
 ```
 
-The package contains the library and two binaries, `main` and `visualization`.
-
-`cargo test` is currently blocked by an unresolved import in `src/tests/tensor_tests.rs` (`E0432`). When active, the suite contains four tests; one of them exercises the
-tensor core, and the module hierarchy, the optimizer, and the export path have no
-coverage. The suite is not deterministic: the distribution tests sample the unseeded
-global generator, and the ternary-distribution test asserts a variance bound at the
-true value of its distribution, so it fails intermittently.
+The package contains the Rust library, the `main` training binary, the `load_ds`
+MNIST reader example, and the `visualization` stub. The CI workflow builds the
+library and binaries and runs the Rust test suite. [CI workflow](../.github/workflows/ci.yml)
 
 ---
 
 ## 3. Run the Training Binary
 
 ```bash
-cargo run --bin main
+cargo run --release --locked --bin main
 ```
 
-The current binary:
+`main` selects the MNIST factory in source. It reads the data under
+`mnist-data/` and downloads missing files through the reader. The runner
+prints epoch timing, throughput, loss telemetry, and training-set accuracy.
+The experiment guide describes what those metrics mean for each inspected
+runner revision. OR and XOR are available as library configuration factories.
 
-1. Selects the OR experiment in source; it has no prompt or command-line selector.
-2. Trains for the configured 100,000 epochs. Weights initialize through the unseeded
-   random constructor and biases to zero, so runs are not reproducible.
-3. Prints periodic mean squared error values and final floating-point predictions.
-4. Skips the export calls: `export_model` and `export_data` are commented out in the
-   source, so the checked-in `npu/data/` files are not overwritten.
-5. Extracts the network topology and writes `src/view/artifacts/graph.dot`, then
-   renders `src/view/artifacts/network.png` through Graphviz. The directory is not
-   created automatically and is absent in a fresh clone, so the run terminates with a
-   file error after the predictions are printed.
-
-The files under `npu/data/` are the ones the NPU testbench reads; because the export
-calls are disabled, they remain unchanged by a training run.
-
-See [`EXPERIMENTS.md`](EXPERIMENTS.md) for the experiment contract and selection
-limitations.
+The training command reports results to the terminal. Hardware memory files
+come from explicit calls to the export functions. [Experiment behavior and benchmark capture](EXPERIMENTS.md#selection-and-execution) ·
+[Export API](API.md#4-export-and-visualization)
 
 ---
 
 ## 4. Run the Visualization Binary
 
-```bash
-cargo run --bin visualization
-```
-
-The visualization binary requires Graphviz. It builds its own hard-coded random model;
-it does not consume the model trained by `main`. It writes:
-
-| Artifact | Path |
-|---|---|
-| Graphviz source | `src/view/artifacts/graph.dot` |
-| Rendered image | `src/view/artifacts/network.png` |
+The `visualization` binary is a stub. Network diagram generation is tracked
+under [visualization status](VISUALIZATION.md).
 
 ---
 
 ## 5. Run the Hardware Prototype
 
-Hardware setup, simulation, waveform inspection, and lint commands are documented in
-[`npu/README.md`](../npu/README.md). The current prototype computes a single affine
-layer with dense ternary weights (testbench: `IN = 2`, `OUT = 1`): conditional
-add/subtract accumulation, the per-layer $W_0$ epilogue with two saturations and
-per-output bias, and prints results without automatic target assertions. The flow is
-Verilator-only.
+From the repository root, use `make -C npu test` for the Tier 1 hand-calculated
+checks and `make -C npu lint` for RTL lint. Use `make -C npu sim` for the legacy
+single-layer smoke test. The assembled two-layer parity bench has a separate
+`test-parity` target and requires matching inputs and expected outputs.
+[Hardware commands and fixtures](../npu/README.md#commands)

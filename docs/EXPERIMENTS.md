@@ -47,7 +47,7 @@ factory supplies the identifier in its configuration.
 |---|---|---:|---:|---|
 | `tars::experiments::or::train()` | `2 -> Linear(1) -> Sigmoid` | 100,000 | 20.0 | `ExperimentType::Or` |
 | `tars::experiments::xor::train()` | `2 -> Linear(4) -> Sigmoid -> Linear(1) -> Sigmoid` | 1,000,000 | 1.0 | `ExperimentType::Xor` |
-| `tars::experiments::mnist::train()` | `784 -> ReLU -> Linear(10)` | 10 in the factory at `8854e7b` | 0.003 | `ExperimentType::Mnist` |
+| `tars::experiments::mnist::train()` at `e7b7f64` | `784 → 10`, one affine layer | 10 | 0.003 | `ExperimentType::Mnist` |
 
 The OR and XOR datasets contain the complete two-input truth table.
 
@@ -61,11 +61,10 @@ The OR and XOR datasets contain the complete two-input truth table.
 ## Selection and execution
 
 The executable selects `experiments::mnist::train()` in `src/bin/main.rs`.
-The factory loads the MNIST training split and creates one-hot targets with ten
-classes. The runner at `8854e7b` truncates the data to 600 samples, overrides the
-configuration to 100 epochs, and takes one Adam step per epoch. See the
-[delivery plan](project/V0_DELIVERY_PLAN.md#11-what-did-the-training-and-tensor-audit-find-on-2026-11-21)
-for the local runner changes and gaps against the release baseline.
+The factory takes images and labels from the MNIST training split and creates
+one-hot targets with ten classes. The runner at `e7b7f64` uses Adam and
+batches of 512.
+[MNIST factory](../src/experiments/mnist.rs) · [Runner](../src/bin/main.rs)
 
 Selection is fixed in the source compiled into the executable. The small-model
 factories supply training data and topology for OR and XOR. Their MSE regression
@@ -74,15 +73,14 @@ checks are part of the release verification plan.
 The training executable runs from the repository root.
 
 ```bash
-cargo run --bin main
+cargo run --release --locked --bin main
 ```
 
 Each optimization step reads a batch from `DataMiniBatches`, records the forward
 trace, computes analytical parameter gradients, and updates the model. The
-current runner derives synthetic MSE targets from the SoftmaxCE gradient.
-Reported accuracy uses argmax on the samples in the training data. The
-[API reference](API.md#3-training-operations) describes the loss integration
-conflict.
+runner derives synthetic MSE targets from the SoftmaxCE gradient and reports
+argmax accuracy on the training samples.
+Associate each report with its exact source. [API reference](API.md#3-training-operations)
 
 ## Exports and constraints
 

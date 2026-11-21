@@ -5,168 +5,50 @@
 **Document type:** Current implementation record. Planned replacements belong in
 specifications or proposals and are identified explicitly.
 
-The repository contains one Rust package and one SystemVerilog prototype. They share
-the Q8.24 numeric representation and the `npu/data/` artifact paths, but they do not yet
-share a model topology format or an automated parity check.
+TARS combines a typed Rust tensor and training stack with a dense ternary
+SystemVerilog accelerator. Explicit exporter calls connect them through
+hexadecimal memory files in `npu/data/`. The assembled parity bench can read
+these files. Exact comparison with an independent integer reference is a
+release gate. [Artifact reference](MEM_FORMAT.md)
 
 ## Repository structure
 
-```text
-Cargo.toml
-src/
-  lib.rs                  Public module exports and re-exports
-  train.rs                Shared Train configuration
-  experiments.rs          Public experiment-module declarations
-  experiments/
-    experiment_type.rs    OR/XOR identifiers
-    or.rs                 OR configuration factory
-    xor.rs                XOR configuration factory
-  data.rs                 Training samples
-  math.rs                 Scalar activations and random initialization
-  math/tensor.rs          Tensor core: storage dispatch, views, kernels, products
-  modules.rs              Module trait and concrete-module enum
-  modules/
-    linear.rs             Dense layer
-    activations.rs        ReLU and sigmoid modules
-    sequential.rs         Ordered module composition
-  optim.rs                Optimizer module exports
-  optim/
-    cost.rs               Mean squared error
-    grad.rs               Finite-difference gradients
-    bgd.rs                Batch gradient descent
-  view.rs                 Visualization module export
-  view/graph.rs           petgraph and Graphviz integration
-  bin/
-    main.rs               Training executable with source-selected experiment
-    visualization.rs      Hard-coded graph visualization executable
-npu/
-  src/npu_pkg.sv          Shared package: activation/state types and Q8.24 constants
-  src/t3_dec.sv           2-bit ternary weight decode ($v = b_0 - b_1$)
-  src/pe.sv               Ternary conditional add/subtract processing element
-  src/epilogue.sv         $W_0$ scale, saturations, bias, and activation
-  src/layer_engine.sv     Single-layer engine controller (`IN`, `OUT`)
-  src/npu.sv              Per-network wrapper: two chained `layer_engine` instances (784→64→10 defaults)
-  tests/tb.sv             Simulation testbench
-  data/                    Memory files consumed by the testbench
-  files.f                 Single source RTL file list (Makefile and LSP)
-  Makefile                Simulation, test, waveform, and lint targets
-```
+| Area | Responsibility |
+| --- | --- |
+| `src/tensor/` | Typed `Tensor<T>`, geometry and views, float kernels, and experimental packed T3 storage |
+| `src/modules/` | Dense layers, activations, and the sequential model and forward cache |
+| `src/optim/` | Losses, analytical parameter gradients, BGD, and Adam |
+| `src/data.rs` and `src/experiments/` | Sample and batch data, seeded shuffling, and experiment configuration factories |
+| `src/quant/` and `src/export.rs` | Ternary scalar quantization and conversion to the Rust–RTL memory files |
+| `src/bin/` | MNIST training runner, dataset reader example, and visualization stub |
+| `npu/src/` and `npu/tests/` | Ternary primitives, layer engine, assembled wrapper, and simulation benches |
 
 ## Rust model
 
-`Module` defines the inference interface:
+`Module::forward` maps `&Tensor<f32>` to `Tensor<f32>`. `AnyModule`
+dispatches between `Linear` and `Activation`. `Sequential` stores a
+`Vec<AnyModule>`. Its constructor creates the first affine layer and the
+consuming builder appends layers while tracking the current feature width.
+`Linear` stores `[out, in]` weights and `[out]` biases as `Tensor<f32>`.
+Each random layer initializes from a fixed seed and starts with zero biases.
 
-```rust
-pub trait Module {
-    fn forward(&self, input: &[f32]) -> Vec<f32>;
-}
-```
-
-`AnyModule` provides runtime dispatch over the implemented module types:
-
-```rust
-pub enum AnyModule {
-    Linear(Linear),
-    Activation(Activation),
-}
-```
-
-`Sequential` stores an ordered `Vec<AnyModule>`. Its builder methods update the
-expected feature count when a linear layer is appended.
-
-```rust
-impl Sequential {
-    pub fn new(input_size: usize) -> Self;
-    pub fn linear(self, output_size: usize) -> Self;
-    pub fn relu(self) -> Self;
-    pub fn sigmoid(self) -> Self;
-}
-```
-
-`Linear` stores weights as `Vec<Vec<f32>>`, indexed by output feature and then input
-feature. Biases are stored as `Vec<f32>`. `Sequential::linear` constructs layers
-through the random constructor, which draws weights from the unseeded global
-generator and initializes biases to zero; the zeros constructor is not used by the
-built-in experiments.
-
-```rust
-impl Linear {
-    pub fn new(
-        in_sz: usize,
-        out_sz: usize,
-        weights: Vec<Vec<f32>>,
-        bias: Vec<f32>,
-    ) -> Self;
-    pub fn zeros(in_sz: usize, out_sz: usize) -> Self;
-    pub fn random(in_sz: usize, out_sz: usize) -> Self;
-}
-```
-
-The remaining training interfaces are:
-
-```rust
-impl Data {
-    pub fn new(input: &[f32], target: &[f32]) -> Self;
-}
-
-pub fn cost(model: &Sequential, data: &[Data]) -> f32;
-pub fn num_grad(model: &Sequential, data: &[Data]) -> Grad;
-
-impl BGD {
-    pub fn new(lr: f32) -> Self;
-    pub fn step(&self, model: &mut Sequential, grad: &Grad);
-}
-```
-
-`cost` computes the mean squared error across output elements and samples.
-`num_grad` computes centered finite differences with `h = 1e-3` for every weight and
-bias. `BGD::step` applies the resulting gradient to each linear layer.
+`Sequential::forward_cache` records its input and each module output. The
+free `backward` function walks those entries in reverse and returns gradients
+indexed by module. BGD and Adam update the model parameters. Full-model finite
+differences are a verification task. [Current public API](../API.md) ·
+[Target training interfaces](specs/TRAINING.md)
 
 ## Training executable
 
-`src/bin/main.rs` performs the following operations:
-
-1. Calls `experiments::or::train()` to construct the selected `Train` configuration.
-2. Prints its `ExperimentType` identifier and initial MSE.
-3. Trains with full-dataset analytical backpropagation and BGD, reporting progress.
-4. Prints predictions for the configured dataset.
-5. Skips the Q8.24 export: the `export_model` and `export_data` calls are commented
-   out in the source.
-6. Builds a `NetGraph` from the trained model, writes `src/view/artifacts/graph.dot`,
-   and renders `src/view/artifacts/network.png` through Graphviz.
-
-`Train` is defined in `src/train.rs` and re-exported as `tars::Train`. Experiment
-factories provide the model, epochs, learning rate, dataset, and identifier. Selection
-is fixed by the factory call in the executable source; there is no interactive
-selector. The model and dataset export calls are commented out; the graph artifact
-generation runs after training.
-
-See [`../EXPERIMENTS.md`](../EXPERIMENTS.md) for the configuration contract,
-built-in experiments, reporting behavior, and manual extension workflow.
+`main` calls the MNIST factory and reports progress and accuracy over the
+training data. The experiment guide records the runner configuration for
+the inspected source revision. The training command leaves export and
+visualization to their own entry points. [Experiment configurations](../EXPERIMENTS.md#selection-and-execution)
 
 ## Visualization
 
-The visualization code is part of the `tars` package and is exported through
-`tars::view`. `NetGraph` wraps `petgraph::graph::DiGraph<Perceptron, f32>` and exposes
-the following interface:
-
-```rust
-impl NetGraph {
-    pub fn new(model: Sequential, input_data: &[f32]) -> Self;
-    pub fn network_to_graph(&mut self) -> Result<(), Box<dyn std::error::Error>>;
-    pub fn add_node(&mut self, p: Perceptron);
-    pub fn add_edge(&mut self, from: usize, to: usize, w: f32);
-    pub fn plot(&self);
-}
-```
-
-Serialization and rendering are reached through `save_dot` and `compile_dot`, provided
-by the private `graph::dot` module.
-
-Node indices are retained in insertion order. `plot` invokes the external `dot`
-command with fixed input and output paths. The visualization executable constructs
-its own hard-coded `Sequential` model and is not connected to the model trained by
-the main executable.
+The `visualization` binary is a stub. The graph helpers under `src/view/`
+remain outside the public module tree. [Visualization status](../VISUALIZATION.md)
 
 ## SystemVerilog Hardware Subsystem
 
@@ -179,7 +61,8 @@ topology is configuration (elaboration parameters plus the weight, bias, and
 $W_0$ ports), not code — a network with different dimensions is the same file
 with different parameters. The wrapper chains the layers through the handshake:
 `u_l1.start` is driven by `u_l0.done`, so layer 1 begins when layer 0 commits
-its last result. Layer 0 applies `RELU`; layer 1 applies `IDENTITY`.
+its last result. For MNIST parity the bench supplies `RELU` for layer 0 and
+`IDENTITY` for layer 1.
 
 This wrapper is the manual-composition reference of Layer 2 in
 [`ASSEMBLY_AND_TEST_MODEL.md`](ASSEMBLY_AND_TEST_MODEL.md), Section 1. It
@@ -235,33 +118,20 @@ boundaries, and the test gates — is owned by
 `start` (level) is a contract violation that the engine tolerates but does not
 protect against.
 
-`npu/tests/tb.sv` instantiates the DUT (`IN = 2`, `OUT = 1`), loads
-`data/bias.mem`, `data/weights.mem`, and `data/activations.mem` into
-testbench-level arrays that drive the DUT ports, sets `w0` to $1.0$ in Q8.24,
-executes four sequential evaluations with reset between them, logs trace
-outputs via `$dumpfile` / `$dumpvars`, and displays formatted Q8.24 results
-without automated assertions. The checked-in `data/weights.mem` holds legacy
-dense Q8.24 words while the engine consumes 2-bit ternary codes; the ternary
-weight export arrives with implementation Step 1.
+The legacy smoke bench drives a single layer with small input files. The
+Tier 1 bench exercises the assembled wrapper with hand-calculated data.
+The Tier 2 bench instantiates the release-shaped wrapper and reads exported
+weights, scales, biases, and inference data. [Simulation commands](../../npu/README.md#tests)
 
 ## Integration Boundary
 
-The Rust export module (`src/export.rs`) converts floating-point weights, biases, inputs, and targets into Q8.24 fixed-point hexadecimal words (`to_q8_24` with truncation):
-
-| Artifact File | Format | Source Generator | Consumer |
-|---|---|---|---|
-| `npu/data/weights.mem` | Q8.24 Hex (legacy dense) | `export_model()` | `$readmemh` into the testbench weight array (2-bit codes expected by the engine; mismatch until Step 1) |
-| `npu/data/bias.mem` | Q8.24 Hex | `export_model()` | `$readmemh` into the testbench bias array |
-| `npu/data/activations.mem` | Q8.24 Hex | `export_data()` | `$readmemh` into the testbench data array |
-| `npu/data/target.mem` | Q8.24 Hex | `export_data()` | Not loaded by the current testbench |
-
-The export calls in the training binary are commented out, so the checked-in memory
-files consumed by `make sim` remain from an earlier export and are not overwritten by
-a training run. The shared encoding and paths do not provide topology or activation
-information, `target.mem` holds dataset labels rather than golden inference outputs,
-and the testbench performs no bit-exact assertions. Topology compilation and
-golden-vector parity remain project targets recorded in
-[`../project/ROADMAP.md`](../project/ROADMAP.md).
+`export_model` writes dense ternary weights and Q8.24 scales and biases.
+`export_inference` writes Q8.24 inputs and float-derived predictions.
+`npu.sv` receives parameters through ports, and elaboration configures the
+layer dimensions. The current Tier 2 comparator allows one LSB. The release
+requires expected words from the independent Rust integer reference and an
+exact comparison. [Artifact encoding and consumers](MEM_FORMAT.md) ·
+[Parity delivery plan](../project/V0_DELIVERY_PLAN.md#24-how-do-export-and-rtl-establish-exact-parity-pending)
 
 ## Glossary
 

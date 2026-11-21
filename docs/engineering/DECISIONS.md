@@ -2,11 +2,9 @@
 
 **Audience:** TARS maintainers and engineering reviewers.
 
-**Document type:** Record of implemented architectural decisions.
-
-This file contains only decisions reflected in the current repository. Proposed
-quantization modes, runtime targets, and future NPU organizations are not recorded as
-implemented decisions.
+**Document type:** Record of implemented decisions and explicitly superseded
+decisions retained for context. Current targets are recorded in the
+[engineering index](README.md).
 
 ## ADR-002: Keep Rust and SystemVerilog in one repository
 
@@ -24,12 +22,10 @@ repository.
 **Current consequences:**
 
 - Rust sources and the SystemVerilog prototype have independent build commands.
-- There is no automated integration or parity test between them.
-- Rust export and the testbench address the same files under `npu/data/`. The
-  export calls in the training binary are commented out, so the checked-in files
-  remain from an earlier export and are not overwritten by a training run. The
-  remaining gaps toward a shared pipeline are the absence of topology export and
-  automated parity assertions.
+- Rust export and the assembled Tier 2 bench share memory files under
+  `npu/data/`. Export is an explicit step.
+- The exact Rust reference and exact Tier 2 comparison remain [PENDING].
+  [Current artifacts](MEM_FORMAT.md) · [Test tiers](ASSEMBLY_AND_TEST_MODEL.md#5-three-tier-verification-model)
 
 ## ADR-003: Distribute TARS under the Apache License 2.0
 
@@ -58,9 +54,9 @@ documentation are distributed under the Apache License, Version 2.0.
 
 ## ADR-004: Container-level type dispatch instead of dtype generics
 
-**Status:** Implemented (superseded by the typed-element revision of
-[`specs/TENSOR.md`](specs/TENSOR.md), October 2026; the container-level dispatch
-described here remains in the source until that migration lands)
+**Status:** Superseded by the typed-element revision of
+[`specs/TENSOR.md`](specs/TENSOR.md), October 2026. The current source uses
+`Tensor<T>` with storage associated with each element type.
 
 **Decision:** `Tensor` carries its numerical representation through the container-level
 `Storage` enum, and the `DType` tag is derived from the storage variant on demand.
@@ -84,7 +80,7 @@ object.
   runtimes; element-type generics are the domain of fixed-type numerical array
   libraries.
 
-**Current consequences:**
+**Consequences of the original design:**
 
 - Adding a future dtype is additive: one `Storage` variant, one `DType` tag, one
   match arm per internal operation. Public signatures do not change.

@@ -4,12 +4,16 @@
 [`V0_CONTRACT.md`](../V0_CONTRACT.md), Section 4. Companion to
 [`LOG-006-ternary_zero_skipping_encoding.md`](LOG-006-ternary_zero_skipping_encoding.md).
 
-**State:** Accepted scope decision and release plan (maintainer position).
-The single-layer ternary core (decode, processing element, epilogue, layer
-engine) is implemented; the multi-layer scope below remains gated by
-Section 4, and all quantitative figures are projections pending those gates.
+**State:** Historical release plan. The later
+[LOG-008 scope decision](LOG-008-v0_governance_and_release_decisions.md#2-maintainer-decisions-november-2026)
+sets the `784 → 64 → 10` manual wrapper for v0.1.0 and defers the
+programmable top to v0.1.1.
 
-This log records the v0.1.0 hardware scope — multi-layer layer engine,
+At the time of the plan, the single-layer ternary core was implemented.
+Quantitative figures in this log are historical projections. See the
+[implementation status](../STATUS.md) for the current wrapper and tests.
+
+This log records the original v0.1.0 hardware scope — multi-layer layer engine,
 ping-pong activation banks, execution modes 0 and 1, with mode 2 reserved in
 the layer descriptor for v0.2.0 — and defines the four-step implementation
 sequence with acceptance gates that isolate each new failure surface.

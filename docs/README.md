@@ -17,7 +17,7 @@ requirement to read everything.
 |---|---|
 | New to the project | [`GETTING_STARTED.md`](GETTING_STARTED.md) (environment and commands) → [`../npu/README.md`](../npu/README.md) (what the NPU is) → [`project/STATUS.md`](project/STATUS.md) (where things stand) |
 | Going to touch the RTL | [`../npu/README.md`](../npu/README.md) → [`engineering/ARCHITECTURE.md`](engineering/ARCHITECTURE.md) (glossary and handshake contract) → [`engineering/specs/ARITHMETIC_Q8_24.md`](engineering/specs/ARITHMETIC_Q8_24.md) → [`project/research/LOG-007-v0_execution_mode_phasing.md`](project/research/LOG-007-v0_execution_mode_phasing.md) (decisions and steps) |
-| Going to touch the Rust side or the file formats | [`engineering/MEM_FORMAT.md`](engineering/MEM_FORMAT.md) → [`project/V0_CONTRACT.md`](project/V0_CONTRACT.md) (release criteria) → [`project/ROADMAP.md`](project/ROADMAP.md) (ownership and gates) |
+| Going to touch the Rust side or the file formats | [`API.md`](API.md) → [`engineering/specs/TRAINING.md`](engineering/specs/TRAINING.md) (target interfaces) → [`engineering/MEM_FORMAT.md`](engineering/MEM_FORMAT.md) (artifacts) |
 
 ---
 
@@ -26,9 +26,9 @@ requirement to read everything.
 | Objective | Document | Scope |
 |---|---|---|
 | Prepare the environment and run TARS | [`GETTING_STARTED.md`](GETTING_STARTED.md) | Requirements, commands, current behavior, and operational limitations |
-| Run the OR or XOR configurations | [`EXPERIMENTS.md`](EXPERIMENTS.md) | Experiment factories, training flow, outputs, and manual selection |
+| Train MNIST or inspect the OR and XOR factories | [`EXPERIMENTS.md`](EXPERIMENTS.md#built-in-experiments) | Model settings, training flow, and outputs |
 | Inspect the current public surface | [`API.md`](API.md) | Implemented modules, operations, and stability boundaries |
-| Generate network diagrams | [`VISUALIZATION.md`](VISUALIZATION.md) | Graph extraction, DOT export, Graphviz rendering, and manual graph construction |
+| Check visualization availability | [`VISUALIZATION.md`](VISUALIZATION.md) | Current stub and planned output |
 | Simulate the NPU prototype | [`../npu/README.md`](../npu/README.md) | Hardware environment, Make targets, and current simulation behavior |
 
 ---

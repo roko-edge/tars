@@ -3,14 +3,14 @@
 **Status:** Target contract for the core tensor subsystem. This specification defines
 the normative architecture, minimum viable surface, memory layout, striding rules,
 type representations, and linear algebra contracts for the typed tensor core in
-`src/math/tensor.rs`. Section 4.2 records the delivery phase in progress and the
+`src/tensor/`. Section 4.2 records the delivery phase in progress and the
 surface that remains deferred.
 
 **Revision (October 2026):** the element type is a compile-time parameter
 (`Tensor<T>`), replacing the container-level storage dispatch of the preceding
 revision. The wire tag `DType` is retained for serialization and for the hardware
-descriptor. The source implements the preceding container-level design until the
-typed migration lands; Section 4.2 governs the transition.
+descriptor. The source implements typed float tensors and experimental packed
+T3 storage. Section 4.2 records the remaining contract work.
 
 ---
 
@@ -251,13 +251,13 @@ implementations, never the method signatures.
 
 #### 4.0.1 Gap Notes
 
-- `new` does not yet validate the element capacity of the supplied storage against the shape product, as required by Section 2.2, Invariant 5.
+- `new` checks supplied storage capacity against the shape product. A descriptive capacity error and checked shape arithmetic remain open.
 - `zeros` does not yet materialize the ternary fill encoding of Section 3.1 for the `T3` type; the `T3` zero-allocation path belongs to the subsequent phase. The `f32` zeroed allocation exists.
 - Element access exists for implemented element types only. A type without an implemented access path cannot be constructed, so there is no runtime unsupported-variant path; this supersedes the former empty-diagnostic termination of the container-level design.
-- `is_contiguous` applies a third clause, a non-empty backing buffer, which is not part of the definition of Section 2.2, Invariant 4.
+- `is_contiguous` checks canonical strides and offset zero. It allocates a stride vector for the comparison.
 - The in-place axis swap alters the shape and stride vectors only. It does not write to the storage buffer and therefore does not trigger the buffer duplication of Section 5. Its diagnostic, shared with the non-in-place variant, is not yet worded according to the policy of Section 4.1, and the operation has no test coverage.
 - The stride computation that establishes canonical row-major strides carries an identifier distinct from the re-packing operation, so the two entities coexist without collision. The re-packing operation is delivered under the identifier `make_contiguous`; its reconciliation with the `contiguous` name of this table remains open. The operation has no test coverage.
-- The element-wise kernels and the products are implemented over `F32` and honour the stride vectors of their operands. Their shape and dimension preconditions are reported through default assertion text or empty diagnostics that do not name the violated precondition; `div_scalar` does not reject a zero divisor; `map` accepts non-mutating callables only; the kernels and the products have no test coverage.
+- The element-wise kernels and products honour strides. `div_scalar` rejects zero, and `map` accepts `FnMut` with a dense slice path and a strided fallback. Some shape diagnostics are still empty or generic. The tensor tests cover a subset of the contract.
 - The full reduction `sum` is implemented and honours the stride vector. It terminates on a rank-zero operand through the logical iteration helper (defect D-06 of the delivery plan) and has no test coverage.
 
 ### 4.1 Preconditions and Error Policy
