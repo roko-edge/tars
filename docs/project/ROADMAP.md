@@ -17,9 +17,9 @@ existing ownership assignments.
 
 | Owner | Current assignment | Definition of done | Unblocks |
 |---|---|---|---|
-| Gustavo | [PENDENTE] Repair the seeded initialization stream, verify the ternary sampler, and make held-out MNIST evaluation reproducible. | Math tests pass. Evaluation preserves sample IDs and records accuracy, the contractual 95% binomial interval, and paired comparison. | Deterministic training and release measurements |
-| Gildo | [PENDENTE] Connect MSE and SoftmaxCE to analytical backward, preserve OR/XOR regressions, and finish the float MNIST baseline with BGD. | Numerical gradient checks pass. The held-out float score reaches the release threshold. | Float reference and reproducible checkpoints for PTQ and QAT |
-| Arthur | [PENDENTE] Close the quantizer contract, implement QAT and the independent integer reference, and verify the assembled wrapper against exact expected words. | The small fixtures and trained MNIST model pass exact parity. The held-out fixed-point score reaches the ternary threshold. | Verified Rust–RTL deployment artifacts and release parity |
+| Gustavo | [PENDING] Repair the seeded initialization stream, verify the ternary sampler, and make held-out MNIST evaluation reproducible. | Math tests pass. Evaluation preserves sample IDs and records accuracy, the contractual 95% binomial interval, and paired comparison. | Deterministic training and release measurements |
+| Gildo | [PENDING] Connect MSE and SoftmaxCE to analytical backward, preserve OR/XOR regressions, and finish the float MNIST baseline with BGD. | Numerical gradient checks pass. The held-out float score reaches the release threshold. | Float reference and reproducible checkpoints for PTQ and QAT |
+| Arthur | [PENDING] Close the quantizer contract, implement QAT and the independent integer reference, and verify the assembled wrapper against exact expected words. | The small fixtures and trained MNIST model pass exact parity. The held-out fixed-point score reaches the ternary threshold. | Verified Rust–RTL deployment artifacts and release parity |
 
 ---
 

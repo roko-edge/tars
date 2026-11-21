@@ -15,38 +15,41 @@ pub enum DType {
 // Indices refer to logical elements
 pub trait StorageOps<T>: Clone + Debug {
     fn from_vec(data: Vec<T>) -> Self;
-
     fn len(&self) -> usize;
-
     fn get(&self, index: usize) -> T;
-
     fn set(&mut self, index: usize, value: T);
-
-    // Allocate storage containing 'len' copies of 'value'.
     fn filled(len: usize, value: T) -> Self
     where
         T: Clone,
     {
         Self::from_vec(vec![value; len])
     }
+    fn as_slice(&self) -> Option<&[T]> {
+        None
+    }
+    fn as_mut_slice(&mut self) -> Option<&mut [T]> {
+        None
+    }
 }
-
 // Copy-on-write backend for regular elements such as f32.
 impl<T: Clone + Debug> StorageOps<T> for Arc<Vec<T>> {
     fn from_vec(data: Vec<T>) -> Self {
         Arc::new(data)
     }
-
     fn len(&self) -> usize {
         self.as_ref().len()
     }
-
     fn get(&self, index: usize) -> T {
         self[index].clone()
     }
-
     fn set(&mut self, index: usize, value: T) {
         Arc::make_mut(self)[index] = value;
+    }
+    fn as_slice(&self) -> Option<&[T]> {
+        Some(self.as_ref().as_slice())
+    }
+    fn as_mut_slice(&mut self) -> Option<&mut [T]> {
+        Some(Arc::make_mut(self).as_mut_slice())
     }
 }
 
@@ -195,6 +198,26 @@ impl<T: Element> Tensor<T> {
         assert_eq!(data.len(), required);
         Self::new(<T::Storage as StorageOps<T>>::from_vec(data), shape)
     }
+    pub fn as_slice(&self) -> Option<&[T]> {
+        if self.is_contiguous() {
+            let offset = self.offset;
+            let numel = self.numel();
+            self.storage.as_slice().map(|s| &s[offset..offset + numel])
+        } else {
+            None
+        }
+    }
+    pub fn as_mut_slice(&mut self) -> Option<&mut [T]> {
+        if self.is_contiguous() {
+            let offset = self.offset;
+            let numel = self.numel();
+            self.storage
+                .as_mut_slice()
+                .map(|s| &mut s[offset..offset + numel])
+        } else {
+            None
+        }
+    }
 }
 
 // Copy and acess
@@ -215,11 +238,37 @@ where
         Self::from_vec(data.to_vec(), shape)
     }
 
-    pub fn map_mut(&mut self, f: impl Fn(T) -> T) {
+    pub fn map(&self, mut f: impl FnMut(T) -> T) -> Self {
+        if let Some(slice) = self.as_slice() {
+            let mut out = Vec::with_capacity(slice.len());
+            for val in slice {
+                out.push(f(val.clone()));
+            }
+            return Self::from_vec(out, self.shape.clone());
+        }
+        let mut out = Vec::with_capacity(self.numel());
+        let mut idx = vec![0usize; self.shape.len()];
+        for _ in 0..self.numel() {
+            out.push(f(self.get(&idx)));
+            if !self.shape.is_empty() {
+                Self::step_logical(&self.shape, &mut idx);
+            }
+        }
+        Self::from_vec(out, self.shape.clone())
+    }
+    pub fn map_mut(&mut self, mut f: impl FnMut(T) -> T) {
+        if let Some(slice) = self.as_mut_slice() {
+            for val in slice.iter_mut() {
+                *val = f(val.clone());
+            }
+            return;
+        }
         let mut idx = vec![0usize; self.shape.len()];
         for _ in 0..self.numel() {
             self.set(&idx, f(self.get(&idx)));
-            Self::step_logical(&self.shape, &mut idx);
+            if !self.shape.is_empty() {
+                Self::step_logical(&self.shape, &mut idx);
+            }
         }
     }
 }
@@ -249,16 +298,6 @@ where
 
             tensor
         }
-    }
-
-    pub fn map(&self, f: impl Fn(T) -> T) -> Self {
-        let mut out = Tensor::zeros(self.shape.clone());
-        let mut idx = vec![0usize; self.shape.len()];
-        for _ in 0..self.numel() {
-            out.set(&idx, f(self.get(&idx)));
-            Self::step_logical(&self.shape, &mut idx);
-        }
-        out
     }
 }
 

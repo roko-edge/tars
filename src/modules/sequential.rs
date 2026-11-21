@@ -44,10 +44,14 @@ impl ForwardCache {
 }
 
 impl Sequential {
-    pub fn new(input_size: usize) -> Self {
+    pub fn new(input_size: usize, prox_size: usize) -> Self {
+        let mut initial_modules = Vec::new();
+        let linear = Linear::random(input_size, prox_size);
+        initial_modules.push(AnyModule::Linear(linear));
+
         Self {
-            modules: Vec::new(),
-            input_size,
+            modules: initial_modules,
+            input_size: prox_size,
         }
     }
 
