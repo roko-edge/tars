@@ -131,21 +131,29 @@ Agents never push directly to `main`, never rewrite history, and never touch
 **On disk today:**
 
     npu/src/        RTL core: npu_pkg, t3_dec, pe, epilogue, layer_engine, npu wrapper
-    npu/tests/      testbenches (currently tb.sv)
-    npu/synthesis/  board-only (Urbana) — currently untracked [PENDING: versioning]
+    npu/tests/      legacy smoke, Tier 1 core checks, and Tier 2 parity bench
+    npu/synthesis/  board-only lab (Urbana), git-ignored
     npu/data/       generated *.mem — never commit
     docs/           one decision, one home; status labels on every decision
 
-**Target test model [PROPOSED]** — tiers, not files that exist yet:
-① `tb_core` self-checking (every commit) · ② `tb_parity` against golden vectors
-from the Rust exporter · ③ `tb_shell` system-level. Do not claim these exist
-until they land.
+**Test model:** ① `tb_core` runs hand-calculated self-checks. ② `tb_parity`
+exists, with the independent bit-exact reference and exact comparison pending.
+③ `tb_shell` is planned for the programmable top. Record a pass only for an
+observed run tied to the tested revision.
 
 - `files.f`: `npu_pkg.sv` **always first**.
 - Docs: English; conclusion first; question-style headings; tables over prose;
   labels `[DECIDED]` / `[PENDING]` / `[PROPOSED]` / `[CONFLICT]`.
-- Contradictions between docs and code → mark `[CONFLICT]` and report. Never
-  resolve silently (Invariant 4: docs, exporter and RTL move together).
+- **Keep documentation current.** When an agent verifies that a document
+  presented as current is stale, the agent must update the canonical document
+  and affected links in the same task. Check claims against the inspected
+  source, identify working-tree changes separately from committed behavior,
+  and distinguish supported commands, observed results, and planned work.
+  Preserve dated historical records as history.
+- If the implemented behavior conflicts with a contract, record `[CONFLICT]`
+  with source references and report it in the handoff. Apply recorded maintainer
+  decisions when reconciling docs. Unresolved contract decisions retain their
+  status (Invariant 4: coordinated changes to docs, exporter, and RTL).
 
 ## 7. Who edits what
 
