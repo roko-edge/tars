@@ -1,6 +1,6 @@
 # Experiments
 
-**Audience:** Users running the implemented OR and XOR configurations.
+**Audience:** Users running the OR, XOR, and MNIST configurations.
 
 This page describes the experiment API and training flow currently implemented in
 TARS. Experiment definitions configure a run; the executable owns the training loop.
@@ -14,7 +14,8 @@ TARS. Experiment definitions configure a run; the executable owns the training l
 | [`src/experiments/experiment_type.rs`](../src/experiments/experiment_type.rs) | `ExperimentType` identifiers |
 | [`src/experiments/or.rs`](../src/experiments/or.rs) | OR configuration factory |
 | [`src/experiments/xor.rs`](../src/experiments/xor.rs) | XOR configuration factory |
-| [`src/bin/main.rs`](../src/bin/main.rs) | Selection, training, predictions, export, and graph construction |
+| [`src/experiments/mnist.rs`](../src/experiments/mnist.rs) | MNIST configuration factory |
+| [`src/bin/main.rs`](../src/bin/main.rs) | Selection, training, and accuracy reporting |
 
 `Train` was moved out of `lib.rs` into `train.rs`. The library declares `pub mod
 train` and re-exports its contents, so callers can use either `tars::Train` or
@@ -28,29 +29,27 @@ public modules.
 | Field | Type | Purpose |
 |---|---|---|
 | `model` | `Sequential` | Network whose parameters are updated during training |
-| `epochs` | `usize` | Number of full-dataset optimization steps |
-| `lr` | `f32` | Learning rate supplied to BGD |
-| `dataset` | `Vec<Data>` | Input vectors and expected target vectors |
+| `epochs` | `usize` | Number of passes over the training data |
+| `lr` | `f32` | Learning rate supplied to the optimizer |
+| `dataset` | `Vec<Data>` | Input and target tensors in `f32` |
 | `experiment_type` | `ExperimentType` | Identifier printed when the run starts |
 
-Each experiment exposes `pub fn train() -> Train`. Calling it constructs a fresh
-model and dataset; it does not execute training. `Sequential::linear` constructs
-layers through `Linear::random`: weights are drawn from the unseeded global
-generator and biases initialize to zero. Two runs of the same configuration are not
-reproducible.
+Each experiment exposes `pub fn train() -> Train` to construct a fresh model
+and dataset. `Sequential::linear` calls `Linear::random`, which starts a fixed
+seeded generator for each layer and initializes biases to zero.
 
-`ExperimentType` is a Rust enum deriving `Debug` and `Clone`, with variants `Or` and
-`Xor`. It identifies the configuration for logging. It does not select a factory,
-build a model, or dispatch the training loop; the factory explicitly supplies it.
+`ExperimentType` provides `Or`, `Xor`, `Mnist`, and `Custom` identifiers. Each
+factory supplies the identifier in its configuration.
 
 ## Built-in experiments
 
 | Factory | Network | Epochs | Learning rate | Identifier |
 |---|---|---:|---:|---|
 | `tars::experiments::or::train()` | `2 -> Linear(1) -> Sigmoid` | 100,000 | 20.0 | `ExperimentType::Or` |
-| `tars::experiments::xor::train()` | `2 -> Linear(4) -> Sigmoid -> Linear(1) -> Sigmoid` | 100,000 | 1.0 | `ExperimentType::Xor` |
+| `tars::experiments::xor::train()` | `2 -> Linear(4) -> Sigmoid -> Linear(1) -> Sigmoid` | 1,000,000 | 1.0 | `ExperimentType::Xor` |
+| `tars::experiments::mnist::train()` | `784 -> ReLU -> Linear(10)` | 10 in the factory at `8854e7b` | 0.003 | `ExperimentType::Mnist` |
 
-Both datasets contain the complete two-input truth table in the following order:
+The OR and XOR datasets contain the complete two-input truth table.
 
 | Input | OR target | XOR target |
 |---|---|---|
@@ -61,74 +60,36 @@ Both datasets contain the complete two-input truth table in the following order:
 
 ## Selection and execution
 
-The executable currently selects the OR factory in `src/bin/main.rs`.
+The executable selects `experiments::mnist::train()` in `src/bin/main.rs`.
+The factory loads the MNIST training split and creates one-hot targets with ten
+classes. The runner at `8854e7b` truncates the data to 600 samples, overrides the
+configuration to 100 epochs, and takes one Adam step per epoch. See the
+[delivery plan](project/V0_DELIVERY_PLAN.md#11-what-did-the-training-and-tensor-audit-find-on-2026-11-21)
+for the local runner changes and gaps against the release baseline.
 
-Selection is fixed in the source compiled into the executable. To select XOR, a
-human maintainer changes the selected factory to `experiments::xor::train()` and
-rebuilds. There
-is no stdin prompt, command-line selector, or Cargo feature selecting an experiment.
-The factory itself constructs the configuration at runtime.
+Selection is fixed in the source compiled into the executable. The small-model
+factories supply training data and topology for OR and XOR. Their MSE regression
+checks are part of the release verification plan.
 
-From the repository root, run the configured experiment with:
+The training executable runs from the repository root.
 
 ```bash
 cargo run --bin main
 ```
 
-```text
-Experiment factory -> Train -> Initial MSE
-                               |
-                               v
-                 backward over the full dataset
-                               |
-                               v
-                   BGD updates weights and biases
-                               |
-                               v
-                  Recompute MSE and report progress
-                     (repeat for every epoch)
-                               |
-                               v
-                  Print predictions -> Graph artifacts
-```
-
-1. Print the experiment identifier and calculate the initial mean squared error
-   with `cost(&train.model, &train.dataset)` at epoch zero.
-2. Create `BGD::new(train.lr)` and set the reporting interval to
-   `(train.epochs / 20).max(1)`.
-3. For each epoch from `1` through `train.epochs`, call `backward` on the full
-   dataset. It stores forward activations, propagates loss derivatives through the
-   modules in reverse order, and averages parameter gradients across samples.
-4. Apply one BGD step: each weight and bias is updated by subtracting its gradient
-   multiplied by the learning rate. Recalculate the full-dataset MSE.
-5. At each reporting interval, print the epoch, cost, and percentage improvement
-   relative to the previous reported cost, then update that reference cost. With
-   the built-in configurations, reports occur every 5,000 epochs.
-6. After training, print each sample's input, network output, and expected target.
-   Outputs remain floating-point predictions; the executable does not threshold
-   them into binary labels or calculate classification accuracy.
-7. Create a `NetGraph` and call `network_to_graph` with the trained model and the
-   first sample's input. This extracts the neurons and weighted edges, writes
-   `src/view/artifacts/graph.dot`, and renders `src/view/artifacts/network.png`
-   through Graphviz. Activation modules are skipped by graph extraction, and the
-   artifacts directory must already exist.
-
-The loop uses analytical backpropagation (`backward`). The numerical
-finite-difference helper `num_grad` remains available but is not used by `main`.
-Training runs for the configured epoch count without early stopping.
+Each optimization step reads a batch from `DataMiniBatches`, records the forward
+trace, computes analytical parameter gradients, and updates the model. The
+current runner derives synthetic MSE targets from the SoftmaxCE gradient.
+Reported accuracy uses argmax on the samples in the training data. The
+[API reference](API.md#3-training-operations) describes the loss integration
+conflict.
 
 ## Exports and constraints
 
-The calls to `export_model` and `export_data` are commented out in
-`src/bin/main.rs`. A normal run does not write the files under `npu/data/`; the
-checked-in artifacts remain from an earlier export and are the ones the NPU
-testbench reads when running `make sim`. For the artifact-writing behavior that does
-run at the end of `main`, see [`VISUALIZATION.md`](VISUALIZATION.md).
-
-Configurations must provide a nonempty dataset because graph extraction accesses
-`train.dataset[0]`. Inputs, targets, and layer dimensions must be consistent; the
-configuration API does not validate them. Percentage improvement divides by the
-previous reported cost without a zero guard.
+Export is inactive in the normal training run. Explicit export writes the
+artifacts described in the [API reference](API.md#4-export-and-visualization).
+The batch loader requires a nonempty dataset and a positive batch size. Samples
+in a batch must have consistent input and target shapes.
 
 ## Adding an experiment manually
 

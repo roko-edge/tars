@@ -15,6 +15,12 @@ evaluation, the intermediates that the backward clauses require, and `backward`
 consumes the recorded trace; a second evaluation of the forward chain inside the
 backward pass is not admitted.
 
+**Implementation [CONFLICT], 2026-11-21:** `Sequential::forward_cache` stores a
+flat trace of `Tensor<f32>` values. The free `backward` function consumes that
+trace in reverse module order. The trait currently exposes `forward` alone.
+The [delivery plan](../../project/V0_DELIVERY_PLAN.md#4-which-decisions-need-an-explicit-disposition)
+tracks the difference between the current pass and the target composition.
+
 This document specifies the structural interface contract for neural network
 layers, composite blocks, and execution containers in TARS.
 

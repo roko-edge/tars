@@ -17,7 +17,7 @@ pub fn train() -> Train {
         .collect();
 
     Train {
-        model: Sequential::new(784).relu().linear(10),
+        model: Sequential::new(784, 10),
 
         epochs: 10,
 

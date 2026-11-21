@@ -1,6 +1,6 @@
 # AGENTS.md — Automation & Git Policy
 
-**Status:** [DECIDIDO] by the repository owner (2026-10-28; amended 2026-10-30; **amended 2026-11-19**).
+**Status:** [DECIDED] by the repository owner (2026-10-28; amended 2026-10-30; **amended 2026-11-19**).
 Effective on commit. The 2026-11-19 amendment authorizes agents to execute the
 git workflow (staging, commit, push, PR creation) for human-written code, while
 maintaining strict human ownership of all code files (.rs, .sv, .svh, testbenches):
@@ -132,19 +132,19 @@ Agents never push directly to `main`, never rewrite history, and never touch
 
     npu/src/        RTL core: npu_pkg, t3_dec, pe, epilogue, layer_engine, npu wrapper
     npu/tests/      testbenches (currently tb.sv)
-    npu/synthesis/  board-only (Urbana) — currently untracked [PENDENTE: versioning]
+    npu/synthesis/  board-only (Urbana) — currently untracked [PENDING: versioning]
     npu/data/       generated *.mem — never commit
     docs/           one decision, one home; status labels on every decision
 
-**Target test model [PROPOSTO]** — tiers, not files that exist yet:
+**Target test model [PROPOSED]** — tiers, not files that exist yet:
 ① `tb_core` self-checking (every commit) · ② `tb_parity` against golden vectors
 from the Rust exporter · ③ `tb_shell` system-level. Do not claim these exist
 until they land.
 
 - `files.f`: `npu_pkg.sv` **always first**.
 - Docs: English; conclusion first; question-style headings; tables over prose;
-  labels `[DECIDIDO]` / `[PENDENTE]` / `[PROPOSTO]` / `[CONFLITO]`.
-- Contradictions between docs and code → mark `[CONFLITO]` and report. Never
+  labels `[DECIDED]` / `[PENDING]` / `[PROPOSED]` / `[CONFLICT]`.
+- Contradictions between docs and code → mark `[CONFLICT]` and report. Never
   resolve silently (Invariant 4: docs, exporter and RTL move together).
 
 ## 7. Who edits what
