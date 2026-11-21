@@ -6,9 +6,11 @@ and verified.
 
 This document decomposes the delivery phase defined in
 [`docs/engineering/specs/TENSOR.md`](../engineering/specs/TENSOR.md), Section 4.2, into
-ordered work packages with testable exit conditions. It addresses the deviations
-between the published tensor contract and the current implementation of
-`src/math/tensor.rs`.
+ordered work packages with testable exit conditions. The historical entry
+conditions capture the original migration. The current core lives under
+`src/tensor/` and is used by layers, backward, optimizers, and export.
+[Current tensor API](../API.md#5-experimental-tensor-surface) ·
+[Remaining hardening work](V0_DELIVERY_PLAN.md#31-how-should-the-tensor-core-handle-views-and-bulk-operations-proposed)
 
 ---
 
@@ -33,6 +35,8 @@ The phase is complete when every clause of the following holds:
 ---
 
 ## 2. Entry Conditions
+
+These are the conditions recorded when this phase was opened in October 2026.
 
 | Condition | State |
 |---|---|
@@ -71,8 +75,9 @@ The work packages survive the revision in substance; the mapping is recorded bel
 | WP-11 | Reduced: the unsupported-variant diagnostics (D-02, D-15) are superseded by compile-time absence; the remaining scope is the precondition diagnostics (capacity, indices, zero divisor, alignment) |
 | WP-14 | Reframed as the `T3` implementation block: packing, the dequantizing read, the mixed matmul, and byte alignment |
 
-The migration of the source to the typed contract precedes the continued closure work
-and is recorded in the current assignments of [`ROADMAP.md`](ROADMAP.md).
+The typed implementation is present. The phase still requires the contract
+and verification work recorded in the
+[delivery plan](V0_DELIVERY_PLAN.md#31-how-should-the-tensor-core-handle-views-and-bulk-operations-proposed).
 
 ---
 

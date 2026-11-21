@@ -40,7 +40,7 @@ tars/
 
 The `model/` container is deferred until a non-sequential topology exists (Section 6.1 and [`engineering/specs/MODEL_TRAIT.md`](../engineering/specs/MODEL_TRAIT.md)); manifest extraction is served by `Sequential` in the interim.
 
-### 2.1 Complete Tensor Engine (`src/math/tensor.rs`)
+### 2.1 Complete Tensor Engine (`src/tensor/`)
 - Full N-dimensional contiguous and strided `Tensor` implementation with `Arc` storage.
 - Compile-time element types on `Tensor<T>` (`f32` in the current phase; `T3` in the v0.1.0 arc; `i8` deferred), with `DType` as the one-byte wire tag derived from the element type, matching [`engineering/specs/TENSOR.md`](../engineering/specs/TENSOR.md). Q8.24 is strictly a serialization format of the exporter and is not an element type.
 - Zero-copy view transformations: `slice`, `transpose`, `reshape`, `permute`.
@@ -54,19 +54,28 @@ The `model/` container is deferred until a non-sequential topology exists (Secti
 - **Ternary Quantization Engine ($\{-1, 0, +1\}$):** Weight quantization mapping parameters to ternary states $\{-W_0, 0, +W_0\}$ with scaling factor $W_0$.
 - **Ternary Compute Operations:** Tensor-level mixed-precision dot products reducing continuous/fixed-point activations against ternary weights via conditional add/sub/zero accumulation.
 - **Training Modes:** Training operates on latent `F32` master weights in all modes. The ternary training mode is quantization-aware: the forward pass evaluates against the quantized weight representation and the backward pass applies the straight-through estimator to the quantizer. Integer-only training is out of scope for v0.1.0.
-- **Quantization-Aware Export:** Export pipeline emitting the layer manifest, dense ternary weight memories (`wt.mem`), per-layer scale parameters (`w0.mem`), and the layer program (`program.mem`), per LOG-007, Section 4.2, Step 1. The legacy Q8.24 artifacts (`weights.mem`, `bias.mem`) remain the development-substrate export.
+- **Quantization-Aware Export:** Export the layer manifest, dense ternary
+  weight codes (`wt.mem`), one Q8.24 scale per layer (`w0.mem`), Q8.24
+  biases (`bias.mem`), and inference fixtures for the assembled wrapper.
+  `program.mem` belongs to the programmable top in v0.1.1.
+  [Artifact formats](../engineering/MEM_FORMAT.md) ·
+  [LOG-008 scope decision](research/LOG-008-v0_governance_and_release_decisions.md#2-maintainer-decisions-november-2026)
 
 ### 2.3 Respective NPU Hardware (`npu/`)
 - Multi-cycle **Layer Engine FSM** in SystemVerilog capable of processing $784 \to H \to 10$ layer shapes.
 - **Ternary-only release engine:** 2-bit dense ternary weights with conditional add/sub/zero accumulation, a Q8.24 activation substrate, and the per-layer scale $W_0$ applied in the epilogue before the bias. The dense Q8.24 weight mode is not implemented in the release engine; the single-layer Q8.24 prototype was replaced in the source tree by the ternary engine (October 2026) and is retained in repository history as the development substrate and as the synthesis baseline for resource and energy comparisons (maintainer decision, October 2026).
 - Layer-descriptor modes are reserved: `mode = 0` (dense Q8.24, unused), `mode = 1` (dense ternary, release), `mode = 2` (zero-skipping, v0.2.0), `mode = 3` (int8, future phase).
-- 64-bit saturating accumulator to prevent overflow during 784-element dot products.
-- Self-checking simulation testbench (`tb.sv`) verifying NPU execution against Rust golden vectors with $0$ bit errors.
+- Signed 64-bit accumulator for the full ternary dot product. The epilogue
+  saturates after rescaling and again after bias addition.
+  [Arithmetic contract](../engineering/specs/ARITHMETIC_Q8_24.md#32-accumulation)
+- The assembled Tier 2 bench (`tb_parity.sv`) must compare against the
+  independent Rust integer reference with zero mismatched output words.
 
 ### 2.4 Tensorized Analytical Backpropagation
 - Pure tensor-based **analytical** gradient computation (`backward()`), eliminating all `Vec<Vec<f32>>` allocations. Each `Module` implements its own `backward` under the composite trait contract; no operation-graph autodiff engine is included in v0.1.0 (deferred to v1.0+, Section 5).
-- Quantizer gradients follow the straight-through estimator; the numerical gradient check (`num_grad`) applies to the `F32` graph with quantizers disabled.
-- Dual-mode verification: `num_grad` (finite differences) executes in regression test suites to guarantee analytical gradient correctness on the `F32` path.
+- Quantizer gradients follow the straight-through estimator. Numerical
+  gradient regressions compare the analytical weights and bias gradients
+  against finite differences on the `F32` graph with quantization disabled.
 
 ---
 
@@ -127,6 +136,7 @@ To ensure v0.1.0 abstractions seamlessly scale to CNNs, Closed-Form Continuous (
 | Version | Scope |
 |---|---|
 | **v0.1.0** | MNIST with the f32 reference model ($\ge 95\%$) and the ternary release gate ($> 90\%$ on the bit-exact path); ternary-only NPU engine with bit-exact parity; exporter formats: Q8.24 serialization and dense ternary (`mode = 1`); visualization (Section 3) and research logging (Section 4). |
+| **v0.1.1** | Programmable top with a sequencer, `program.mem` and activation banks, per LOG-008. |
 | **v0.2.0** | `mode = 2` zero-skipping ternary inference ([`research/LOG-006`](research/LOG-006-ternary_zero_skipping_encoding.md)), admitted under the compatibility rules of LOG-007, Section 2.4. The int8 (`I8`/`mode = 3`) capability may enter this phase, with embedded and microcontroller inference as its prospective consumer. |
 | **v0.3.0** | GPU training via cubecl (Vulkan) with custom ternary kernels, per [`engineering/FUTURE_TARGETS.md`](../engineering/FUTURE_TARGETS.md). The device dimension remains compile-time and feature-gated; the golden reference stays CPU-deterministic. |
 | **v1.0+** | Architectural expansion era (Section 5): CNNs, CfC networks, Neural ODEs, DAG topologies, arbitrary-rank tensors, and an operation-level autodiff engine. |

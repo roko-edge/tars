@@ -16,6 +16,13 @@ $$W_{\text{quant}} = W_0 \cdot Q(W)$$
 
 where $Q(W) \in \{-1, 0, +1\}^{m \times n}$.
 
+**[CONFLICT] Threshold and ties.** Section 1.1 specifies ties away from zero,
+while Section 1.2 and the implementation at `e7b7f64` use strict comparisons
+at the half-step. The implementation also uses a small-scale cutoff. The
+release rule for ties and small positive scales remains open.
+[Scalar quantizer](../../../src/quant/ternary.rs) ·
+[Release disposition](../../project/V0_DELIVERY_PLAN.md#4-which-decisions-need-an-explicit-disposition)
+
 ### 1.1 Scale Factor ($W_0$)
 
 $$W_0 = \frac{1}{m \cdot n} \sum_{i=1}^{m} \sum_{j=1}^{n} |W_{ij}|$$

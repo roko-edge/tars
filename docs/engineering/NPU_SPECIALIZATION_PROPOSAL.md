@@ -3,9 +3,9 @@
 **Status:** Proposed. The generator, the engine-selection flow, and the
 elaboration interface described here are not implemented. Section 3 records
 obligations that bind the v0.1.0 hardware steps so that the specialization
-model is a bounded later extension rather than a redesign. The operative
-v0.1.0 hardware plan remains
-[`LOG-007`](../project/research/LOG-007-v0_execution_mode_phasing.md).
+model is a bounded later extension. v0.1.0 uses the manual assembly. The
+programmable top belongs to v0.1.1.
+[Scope decision](../project/research/LOG-008-v0_governance_and_release_decisions.md#2-maintainer-decisions-november-2026)
 
 This proposal defines the specialization model of the TARS NPU — **generic
 components, bespoke assembly**: universal, vendor-agnostic engine modules whose
@@ -32,7 +32,7 @@ cost is data — the layer program and the memory streams — never structure.
 |---|---|---|---|
 | Elaboration-time sizing | Datapath width (computation lanes), bank depths, engine count | Parameters set from the manifest at build | The lane count is a named parameter (value one); banks sized for the MNIST shapes |
 | Structural selection | Which engine modules exist: dense ternary (`mode = 1`), zero-skipping (`mode = 2`), int8 (`mode = 3`), future convolution and CfC engines | Engine modules instantiated per manifest; the layer-descriptor `mode` field is the dispatch seed | Mode 1 ships; modes 2 and 3 are reserved in the descriptor |
-| Runtime programming | Execution of the layer sequence: shapes, scales, streams | The layer program (`program.mem`) read by the top sequencer | The v0.1.0 release mechanism (LOG-007, Section 4.2, Steps 2 through 5) |
+| Runtime programming | Execution of the layer sequence: shapes, scales, streams | The layer program (`program.mem`) read by the top sequencer | Deferred to v0.1.1 (LOG-008). v0.1.0 connects two engines in `npu.sv`. |
 
 The input of a future generator is the hardware manifest — the directed acyclic
 graph intermediate representation required by
@@ -129,7 +129,7 @@ These bind the current phase so that the generator phase is mechanical.
 
 | Record | Relationship |
 |---|---|
-| [`LOG-007`](../project/research/LOG-007-v0_execution_mode_phasing.md) | The operative v0.1.0 ladder; the obligations of Section 3 ride with its Steps 2 through 5 |
+| [`LOG-007`](../project/research/LOG-007-v0_execution_mode_phasing.md) and [`LOG-008`](../project/research/LOG-008-v0_governance_and_release_decisions.md) | Original execution ladder and later scope decision for the programmable top |
 | [`V0_CONTRACT.md`](../project/V0_CONTRACT.md), Sections 2.3 and 5 | Release-engine scope and the manifest IR invariant |
 | [`FUTURE_TARGETS.md`](FUTURE_TARGETS.md) | Invariance rules and phase placement; the generator phase extends the v1.0+ expansion |
 | [`LOG-006`](../project/research/LOG-006-ternary_zero_skipping_encoding.md) | The `mode = 2` token encoding; the stream-entry decision of Section 3, closed to this encoding |

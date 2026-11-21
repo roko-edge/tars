@@ -1,7 +1,7 @@
 # Specification: Q8.24 Fixed-Point Arithmetic and Bit-Exact Parity
 
 **Status:** Target contract with current deviations identified in Sections 2.2 and
-3.4. It does not claim that automated parity verification is implemented. The
+3.4. The Tier 2 bench is available and exact release parity is [PENDING]. The
 release NPU executes dense ternary weights over the Q8.24 activation substrate;
 the ternary arithmetic and epilogue are specified in
 [`LOG-007`](../../project/research/LOG-007-v0_execution_mode_phasing.md), Section
@@ -53,9 +53,8 @@ specification agree on rounding mode, **truncation remains the normative behavio
 for v1 of this contract. Any change requires updating this specification, `src/export.rs`,
 and the NPU RTL (`npu/src/epilogue.sv`, `npu/src/layer_engine.sv`) in the same
 revision (Engineering Invariant 4 of the ROADMAP). The ternary encoder in
-`src/export.rs` does not exist yet and must be born with the dense ternary encoding
-of [`LOG-007`](../../project/research/LOG-007-v0_execution_mode_phasing.md),
-Section 2.3 (implementation Step 1).
+`src/export.rs` emits the dense codes defined in the
+[quantization specification](QUANT.md#2-canonical-hardware-code-serialization).
 
 ---
 
@@ -121,8 +120,8 @@ order of evaluation:
    before the bias, one on the biased sum (evaluated at 64 bits). $W_0$ is
    applied before the bias — the bias lives in the scaled domain.
 4. $W_0$ is one Q8.24 scalar per layer in v0.1.0 ($w0.mem$). A per-channel
-   $W_0[j]$ is a compatible future extension that does not change the
-   hardware structure.
+   $W_0[j]$ is a future extension that requires an indexed scale bank and
+   an artifact-format revision. [Scale granularity](QUANT.md)
 5. The $W_0$ multiplier lives in the epilogue, one per epilogue, outside the
    processing-element array; the zero-DSP obligation of the PE is unaffected.
 6. The activation $\mathrm{act}$ is applied after the second saturation;
@@ -133,46 +132,32 @@ layer engine by `npu/src/layer_engine.sv`.
 
 ### 3.4 Current Deviation (Normative Warning)
 
-Two deviations from bit-exact parity remain:
-
-1. **Floor reduction is not yet reproduced in Rust.** The epilogue reduces
-   with an arithmetic right shift (floor toward negative infinity), while the
-   existing `to_q8_24` conversion truncates toward zero. The Rust bit-exact
-   golden model for the ternary path does not exist yet; when written it must
-   replicate the floor reduction and both saturations exactly — a cast-based
-   truncation diverges from the hardware for negative scaled products.
-2. **Golden vectors and assertion are absent.** The exported `target.mem`
-   contains dataset labels rather than golden Q8.24 inference outputs, and the
-   testbench implements no assertion; the parity protocol of Section 4
-   remains unimplemented. The ternary export artifacts (`program.mem`,
-   `wt.mem`, `w0.mem`) do not exist yet either — they arrive with
-   implementation Step 1 together with the golden model.
+- **[PENDING] Integer reference.** The exporter serializes float predictions
+  to `target.mem`. The reference evaluator must consume the encoded artifacts
+  and apply Section 3.3, including floor rescaling and the two saturations.
+  External float-to-Q8.24 encoding remains a separate operation.
+- **[CONFLICT] Comparator.** The Tier 2 bench loads `wt.mem`, `w0.mem`,
+  `bias.mem`, `activations.mem`, and `target.mem`. It allows a one-LSB
+  difference and calculates that difference in a signed 32-bit word. The
+  release protocol requires exact equality of output words.
+  [Current memory files](../MEM_FORMAT.md) · [Tier 2 bench](../../../npu/tests/tb_parity.sv)
 
 ---
 
 ## 4. Parity Test Protocol
 
-Bit-exact parity between Rust golden inference and NPU simulation is verified through
-golden vector exchange:
+The release verifies parity over one matching set of encoded parameters,
+sample inputs, and expected words.
 
 ```text
-Rust Runtime                              NPU Simulation
-────────────                              ──────────────
-1. train model (seeded PRNG)
-2. run inference on dataset
-3. quantize activations & weights
-   (to_q8_24, truncation)
-4. write:
-   ├── activations.mem                   ├── $readmemh(activations)
-   ├── weights.mem                       ├── $readmemh(weights)
-   ├── bias.mem                          ├── $readmemh(bias)
-   └── target.mem    ─────────────────►  ├── compute (dot product + bias)
-                                          └── assert result == expected
-                                          (PASS/FAIL + $fatal on mismatch)
+Frozen checkpoint and sample IDs
+  → Encode ternary weights, Q8.24 scales, biases, and inputs
+  → Run the independent integer reference on the encoded words
+  → Drive the assembled RTL with the same encoded words
+  → Compare every RTL output word to the corresponding reference word
 ```
 
-Tier 1 self-checking assertions are implemented in `tests/tb_core.sv` and run via
-`make test` (defaulting to `test-core`), terminating with a non-zero exit status
-(`$fatal`) on any arithmetic mismatch. Automated golden-vector parity verification
-against the Rust reference model (Tier 2, `tests/tb_parity.sv`) is scheduled for
-implementation Step 1 upon delivery of the ternary exporter.
+Tier 1 runs through `make test` and uses hand-calculated expectations.
+`make test-parity` runs the separate Tier 2 bench. The release requires the
+expected comparison count and zero mismatched words for the pinned fixture.
+[Release parity steps](../../project/V0_DELIVERY_PLAN.md#24-how-do-export-and-rtl-establish-exact-parity-pending)

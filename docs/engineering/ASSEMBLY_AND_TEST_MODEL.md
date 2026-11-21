@@ -2,10 +2,9 @@
 
 **Status:** Proposal. The three-layer assembly model, the engine contract, and the
 three-tier verification structure recorded here are the maintainer's target
-organization. Nothing beyond the cited current-state rows is implemented. This
-document binds the v0.1.0 hardware steps of
-[`LOG-007`](../project/research/LOG-007-v0_execution_mode_phasing.md) so that
-per-network specialization extends the reference design instead of forking it.
+organization. The current-state rows identify implemented components and
+available checks. The v0.1.0 assembly and v0.1.1 programmable top follow
+[`LOG-008`](../project/research/LOG-008-v0_governance_and_release_decisions.md).
 
 ---
 
@@ -59,6 +58,10 @@ The remaining open question is memory organization, recorded in Section 7.2.
 
 ## 3. Per-Network Assembly Recipe
 
+For v0.1.0 the manual wrapper connects the two engines, fixes the shape at
+elaboration, and receives parameters through ports. The recipe below
+describes the programmable assembly planned for later versions.
+
 | Step | Decision | Code effect |
 |---|---|---|
 | 1 | Which engines the network needs | Instantiate the corresponding Layer 1 engines in the top |
@@ -103,16 +106,19 @@ change trigger.
 | Tier | Scope | Golden source | Changes when | Gate |
 |---|---|---|---|---|
 | ① `tb_core` | Layer 0 primitives and a Layer 1 engine in isolation | Hand-computed reference values embedded in the testbench (spec-as-code) | Only on an RTL contract change — never per network | Every revision |
-| ② `tb_parity` | Layer 1 engine against the Rust golden model | `exp.mem`-class vectors produced by the exporter (Rust bit-exact path) | Gains vectors when a network is added | Release parity gate (LOG-007 Steps 3–5) |
+| ② `tb_parity` | Assembled `npu` wrapper against the Rust golden model | Expected words from the Rust bit-exact path | Gains vectors when a network is added | Exact release parity |
 | ③ `tb_shell` | Layer 2 top: sequencer, memories, I/O | The same golden vectors, observed at the system level, plus the network's `program.mem` | Gains the program of each network | Pre-bitstream gate |
 
 Current state: Tier 1 self-checking testbench (`tests/tb_core.sv`) instantiates
 `npu` and asserts deterministic hand-computed Q8.24 outputs with `$fatal` on
 mismatch; it runs under `make test-core` and the default `make test` target. The
 legacy smoke testbench (`tests/tb.sv`, `make sim`) drives `layer_engine` with
-`IN = 2`, `OUT = 1` and prints results without automated assertions. The
-exporter does not yet emit ternary artifacts (LOG-007 Step 1), so tier ② has
-no input. The tier ③ programmable top is deferred to v0.1.1 (LOG-008).
+`IN = 2`, `OUT = 1` and prints results without automated assertions. Tier 2
+loads the current exporter artifacts and compares against `target.mem`,
+which currently contains float-derived predictions. The independent
+integer reference and exact comparator remain [PENDING]. The Tier 3
+programmable top is deferred to v0.1.1 (LOG-008).
+[Memory format](MEM_FORMAT.md)
 
 System-level behaviors belong to tier ③ only: button debounce, synchronous
 memory read latency, ping-pong bank flips between layers, the fetch–run–commit
@@ -127,9 +133,9 @@ flow, and reset during execution.
 | `test` (defaults to `test-core`) | ① | Implemented; runs `tb_core` self-checking testbench; exits zero on pass, non-zero on `$fatal` |
 | `test-core` | ① | Implemented; compiles and runs `tests/tb_core.sv` in `build/core/` |
 | `sim` | smoke | Implemented; compiles and runs legacy `tests/tb.sv` in `build/` (prints without assertions) |
-| `lint` | ① | Implemented; `verilator --lint-only -Wall --top-module npu`, exits zero; covers wrapper, engines, and primitives |
-| `vectors` | ② input | Not implemented; requires the Step 1 exporter |
-| `test-parity` | ② | Not implemented; requires the Step 1 exporter |
+| `lint` | ① | Implemented via `verilator --lint-only -Wall --top-module npu`. Covers wrapper, engines, and primitives. |
+| `vectors` | ② input | [PENDING] Reproducible vector generation from the integer reference |
+| `test-parity` | ② | Implemented development command. Requires matching memory files. Exact release parity remains [PENDING]. |
 | `sim-shell` | ③ | Deferred to v0.1.1 (LOG-008) |
 | `bit` | board | Exists in the local lab (`make synt-npu` / `flash-npu`, git-ignored) |
 | `test-all` | ① + ② + ③ | Not implemented |
@@ -140,13 +146,10 @@ flow, and reset during execution.
 
 ### 7.1 Four-Word Layer Descriptor Layout
 
-LOG-007 Step 1 requires a four-word layer descriptor documented in
-[`ARITHMETIC_Q8_24.md`](specs/ARITHMETIC_Q8_24.md) and
-[`MEM_FORMAT.md`](MEM_FORMAT.md). The open choice is the word width and field
-packing: four 32-bit words versus four 64-bit words, and the bit assignment of
-dimensions, base addresses, scale, and mode. This decision fixes the program
-memory width and the descriptor type consumed by the sequencer; it gates the
-Step 1 exporter contract.
+The four-word descriptor belongs to the programmable top in v0.1.1. The
+word width and field packing remain open, including the assignment of
+dimensions, base addresses, scale, and mode. The v0.1.0 assembled wrapper
+uses elaboration parameters and the [current memory files](MEM_FORMAT.md).
 
 ### 7.2 `mode = 2` Memory Organization
 
@@ -188,7 +191,7 @@ when a second engine type exists.
 
 | Record | Relationship |
 |---|---|
-| [`LOG-007`](../project/research/LOG-007-v0_execution_mode_phasing.md) | Operative implementation ladder; the tiers and recipes above attach to its Steps 1–5 |
+| [`LOG-007`](../project/research/LOG-007-v0_execution_mode_phasing.md) · [`LOG-008`](../project/research/LOG-008-v0_governance_and_release_decisions.md) | Original implementation ladder and later wrapper and sequencer scope |
 | [`NPU_SPECIALIZATION_PROPOSAL.md`](NPU_SPECIALIZATION_PROPOSAL.md) | Specialization degrees and generator scope; this document is their assembly and verification operationalization |
 | [`V0_CONTRACT.md`](../project/V0_CONTRACT.md) | Release gates the tiers must satisfy (bit-exact parity, self-checking testbench) |
 | [`MEM_FORMAT.md`](MEM_FORMAT.md), [`specs/ARITHMETIC_Q8_24.md`](specs/ARITHMETIC_Q8_24.md) | Artifact and numeric contracts consumed by tiers ② and ③; Section 7.1 extends them |

@@ -37,19 +37,18 @@ The audit covered the local branch at `2a136a6` and the public MNIST merge at
 
 ### 1.1 What did the training and tensor audit find on 2026-11-21?
 
-This inspection covers `8854e7b` and the local training runner and tensor work
-in progress. The index records `src/bin/main.rs` as unmerged. The findings
-below come from source inspection. Test and performance evidence is pending.
+This inspection covers source revision `e7b7f64`. The table records source
+observations. Release test and performance evidence is pending.
 
 | Status | Area | Observed behavior |
 | --- | --- | --- |
 | [DECIDED] | Float training boundary | Data, `Module::forward`, parameters, the forward cache, parameter gradients, and optimizer state use `Tensor<f32>`. LOG-008 decouples typed T3 storage from the release training, export, and parity path. [Training specification](../engineering/specs/TRAINING.md), [LOG-008](research/LOG-008-v0_governance_and_release_decisions.md#2-maintainer-decisions-november-2026) |
-| [PENDING] | Packed ternary consumer | `PackedT3Storage` stores 32 trits per `u64`. The mixed product converts each trit to `f32` for multiplication and carries no scale. The inspected training and export entry points have no caller for this tensor or product. PTQ and export use the scalar ternary encoder. [`ternary_tensor.rs`](../../src/tensor/ternary_tensor.rs), [`export.rs`](../../src/export.rs) |
-| [CONFLICT] | Backward and loss | `Sequential::forward_cache` records a flat trace. The free `backward` function walks `AnyModule` in reverse, then returns gradients in module order. It consumes recorded activations without a second forward. It overwrites the delta from `Loss::backward` with the legacy MSE derivative. The MNIST runner compensates by synthesizing targets and calling backward with `MSE`. [`sequential.rs`](../../src/modules/sequential.rs), [`grad.rs`](../../src/optim/grad.rs), [`main.rs`](../../src/bin/main.rs) |
+| [PENDING] | Packed ternary consumer | `PackedT3Storage` stores 32 trits per `u64`. The mixed product converts each trit to `f32` for multiplication and carries no scale. PTQ and export use the scalar ternary encoder. [`ternary_tensor.rs`](../../src/tensor/ternary_tensor.rs), [`export.rs`](../../src/export.rs) |
+| [CONFLICT] | Backward and loss | `Sequential::forward_cache` records a flat trace and the free backward pass walks it in reverse. The runner uses synthetic MSE targets to compensate for the legacy delta overwrite. The target module-local interface remains open. [`sequential.rs`](../../src/modules/sequential.rs), [`grad.rs`](../../src/optim/grad.rs), [`main.rs`](../../src/bin/main.rs) |
 | [CONFLICT] | SoftmaxCE forward and backward | The loss averages over the batch and its backward returns $(p-y)/B$ for normalized targets. Forward clamps probabilities before taking the logarithm, so the reported scalar and gradient disagree for sufficiently unfavorable logits. Use log-sum-exp and verify the pair on a deterministic float fixture. [`loss.rs`](../../src/optim/loss.rs), [training specification](../engineering/specs/TRAINING.md#12-loss-function-contract) |
-| [CONFLICT] | MNIST baseline | The runner selects Adam, evaluates on its training data, and uses a single affine projection with ReLU before it. The release baseline calls for BGD, held-out evaluation, and the assembled `784 → 64 → 10` topology. The local telemetry reports MSE on raw logits, skips batches without dense views, and averages batch means equally. [`main.rs`](../../src/bin/main.rs), [`mnist.rs`](../../src/experiments/mnist.rs), [release contract](V0_CONTRACT.md) |
-| [PENDING] | QAT and exact parity | PTQ produces a float model with ternarized values and a positional scale list. Export re-quantizes those values. `export_inference` serializes float predictions, and Tier 2 permits a one-LSB difference. The integrated QAT step and the independent fixed-point reference remain open. [`linear.rs`](../../src/modules/linear.rs), [`export.rs`](../../src/export.rs), [`tb_parity.sv`](../../npu/tests/tb_parity.sv) |
-| [PENDING] | Dense tensor fast paths | The local working tree adds logical dense slices and an `FnMut` mapping path with strided fallback. The staged version has the slice methods and the logical mapping path. `is_contiguous` still allocates stride metadata, and the rank-zero guards in `map` and `map_mut` leave the other consumers of `step_logical` exposed. [`tensor_core.rs`](../../src/tensor/tensor_core.rs) |
+| [CONFLICT] | MNIST baseline | The runner uses Adam, evaluates on training data, and uses a single affine layer. The release calls for BGD, held-out evaluation, and the assembled `784 → 64 → 10` topology. Telemetry reports MSE on raw logits and averages the batch means. [`main.rs`](../../src/bin/main.rs), [`mnist.rs`](../../src/experiments/mnist.rs), [release contract](V0_CONTRACT.md) |
+| [PENDING] | QAT and exact parity | The official QAT step and the independent fixed-point reference remain pending. `export_inference` serializes float predictions, and Tier 2 permits a one-LSB difference. [`main.rs`](../../src/bin/main.rs), [`export.rs`](../../src/export.rs), [`tb_parity.sv`](../../npu/tests/tb_parity.sv) |
+| [PENDING] | Dense tensor fast paths | The committed core has logical dense slices and an `FnMut` mapping path with strided fallback. `is_contiguous` allocates stride metadata, and consumers such as `sum` use a logical iterator that panics for rank zero. [`tensor_core.rs`](../../src/tensor/tensor_core.rs) |
 
 ---
 
@@ -147,18 +146,19 @@ serialization of that product gives zero. [Parity bench](../../npu/tests/tb_pari
 
 ## 3. What makes the candidate ready for long-term use?
 
-This milestone is the proposed quality bar for a polished v0.1.0. It begins from
-the passing evidence above. Performance-only work can be developed in parallel
-after its baseline is captured. Changes merged before the tag must preserve the
-release evidence. Later changes follow normal versioned releases.
+Keep the public library small, make the supported operations predictable, and
+remove work from the full training step. Performance work can start from a
+reproducible baseline while release validation proceeds. The final candidate
+must preserve the release evidence and include paired measurements for any
+performance claims.
 
 ### 3.1 How should the tensor core handle views and bulk operations? [PROPOSED]
 
 | Sequence | Design | Acceptance evidence |
 | --- | --- | --- |
-| 1 | Fix logical traversal before adding fast paths. A rank-zero tensor has one element. An empty extent has zero. Check canonical contiguity without allocating stride metadata. | Tests cover scalars, empty extents, rectangular transposes, round-trip materialization, and storage larger than `numel()`. A borrowed dense slice contains exactly the logical extent. |
+| 1 | Fix logical traversal before adding fast paths. A rank-zero tensor has one element. An empty extent has zero. Compare the stored strides with a running expected stride, from the last axis to the first. Retain the current offset check. | Tests cover scalars, empty extents, rectangular transposes, round-trip materialization, and storage larger than `numel()`. A borrowed dense slice contains exactly the logical extent. The contiguity query makes no heap allocation. |
 | 2 | Implement `map` with a borrowed dense slice and a stride-aware fallback. Visit elements in logical row-major order and construct the canonical output directly. Accept a stateful callback. | Dense and strided results agree with hand-calculated examples. A stateful closure observes the same order. The fallback has no temporary packed input and the output avoids an initial zero fill. |
-| 3 | Introduce crate-internal `zip_map` for equal-shape element-wise kernels and migrate arithmetic to it. Keep broadcasting and reductions as explicit operations. | Shape mismatch fails before the callback, including different shapes with equal element counts. Test both-contiguous, mixed-layout, and both-transposed pairs. |
+| 3 | Introduce crate-internal `zip_map` for equal-shape element-wise kernels. Zip borrowed slices when both operands are dense and traverse the logical coordinates otherwise. Reuse it in the existing arithmetic API. Express row-bias addition and batch reduction as named operations. | Shape mismatch fails before the callback, including different shapes with equal element counts. Test both-contiguous, mixed-layout, and both-transposed pairs. Shape, traversal order, and results agree with the scalar reference. |
 | 4 | Reuse existing mutable methods and add an internal `zip_map_mut` where backward or BGD can actually reuse a destination. Acquire mutable dense storage once. Preserve layout and copy-on-write behavior. | Tests confirm unchanged sibling views and retained destination strides. Measurements distinguish unique and shared storage and account for the full update, including any temporary allocation. |
 | 5 | Preserve metadata-only `transpose` for tensor data. Use `make_contiguous` at a consumer that needs canonical storage or after measurement shows that reuse pays for packing. Give packed T3 its own storage access capability. | The dense fast path is available only for storage that can expose a real element slice. The strided path works without forced input copies. Packed and wire representations have their own fixtures. |
 
@@ -173,24 +173,35 @@ coalescing, manual SIMD, or further layout types.
 
 ### 3.2 How should training and matrix kernels get faster? [PROPOSED]
 
-| Work | Expected improvement | Evidence required |
+Remove discarded products and full-buffer copies first. Use the results from
+those changes to profile and prioritize affine kernels, QAT scratch reuse,
+and the smaller element-wise operations. Land changes with one measurable
+hypothesis per revision.
+
+| Order | Change | Evidence required |
 | --- | --- | --- |
-| Draw parameters into a flat buffer and gather batches from one shuffled index buffer. Move completed buffers into tensors. | Less allocation and copying during initialization and batching. | Sample order matches the fixture for each seed. Include the final short batch. Measure allocation count and peak temporary memory. |
-| Build each parameter gradient once. Express row-bias addition and batch reduction with explicit kernels. Fuse activation derivative application and the BGD update where lifetimes allow. | Fewer temporary tensors and a shorter backward path that follows the layer math. | Gradient fixtures, independent mutation tests, and full-step latency and allocation measurements. |
-| Keep `matmul` as its own benchmarked change. Start from direct stride-aware indexing and preserve each output's reduction order on the first pass. Compare loop order and optional kernel-local packing. | Locality improvements for the real forward and backward layouts. | Compare `X × Wᵀ`, `deltaᵀ × X`, and `delta × W` for both layers and representative batches. Include packing time and memory. Check output against a simple reference, then rerun end-to-end evidence. |
-| Narrow parameter and training boundaries with real callers. Preserve the consuming builder and forward trace. Keep layer-specific calculus local and validate dimensions at construction and replacement. | A layer can be tested independently and the optimizer sees an unambiguous parameter order. | OR/XOR and MNIST entry points still work. Parameter access, trace use, and mismatch diagnostics have focused tests. Introduce wider abstractions when a second concrete consumer needs them. |
-| Report each epoch's training objective from cached outputs and aggregate by the objective's denominator. Measure telemetry with the same batches and logging cadence. | Reported loss follows the objective used for updates, including on a short final batch. | Check a full and a short batch against a reference. Report throughput with telemetry enabled and disabled. |
+| 1 | Build each parameter gradient once. Stop propagating at the first trainable layer when backward returns only parameter gradients. Apply each activation derivative directly to the owned delta. Use an explicit batch reduction for `db`. | The same weight and bias gradients for OR, XOR and multilayer float fixtures. Check rank 1 and batch use against the accepted API, and test an explicit input-gradient request if exposed. Measure complete backward time and allocations. [`grad.rs`](../../src/optim/grad.rs) |
+| 2 | Gather directly from borrowed samples using slices of one shuffled index buffer. Transfer the completed input and target buffers into the batch tensors. Flatten parameter initialization in a separate change and preserve draw order during that refactor. | The same seeded sample order, values and shapes, including the final short batch. Measure gather time, allocation count and temporary bytes. Compare changes to the random stream separately. [`data.rs`](../../src/data.rs), [`linear.rs`](../../src/modules/linear.rs) |
+| 3 | Specialize matrix products for the actual access patterns below. Validate geometry once per kernel and resolve strides outside the inner loop. Add row bias after the dot product to preserve the current operation order. | Match a stride-aware scalar reference and test the effect on the full step. Account for any packing, allocation and setup. [`float_tensor.rs`](../../src/tensor/float_tensor.rs) |
+| 4 | In QAT, populate effective float weights directly from the latent parameters. Reuse one buffer per linear layer when ownership allows. Keep that batch's effective weights for the corresponding input gradient. The current quantizer clones the layer and detaches shared weight storage on the first write. | Identical trits, scales and effective weights under the selected quantizer rules. A fixed batch gives the same logits, gradients and latent update. Measure projection and the complete QAT step. [`sequential.rs`](../../src/modules/sequential.rs), [`linear.rs`](../../src/modules/linear.rs) |
+| 5 | After fixing the SoftmaxCE scalar, fuse loss and initial delta over each logits row so they share one exponentiation pass. Weight telemetry by the objective's denominator. Use named in-place update kernels for BGD and, if retained as a supported optimizer, Adam. | Extreme and translated logits, normalized targets and short batches agree with a reference. Optimizer fixtures cover weight and bias updates, multi-step Adam state and rejection of mismatches before mutation. Measure telemetry at a matched cadence. [`loss.rs`](../../src/optim/loss.rs), [`bgd.rs`](../../src/optim/bgd.rs), [`adam.rs`](../../src/optim/adam.rs) |
 
-On the inspected path, batch gathering clones indexed samples and copies both
-completed buffers into tensors. Backward allocates zeroed parameter gradients
-before replacing them, and still computes the model input gradient after the
-first affine layer even though the current API returns parameter gradients
-alone. Activation backward allocates a derivative tensor before multiplying by
-the delta. These are candidates for the work above. The input gradient is needed
-between layers and whenever a caller requests it.
+| Affine operation | First kernel to compare |
+| --- | --- |
+| Forward $XW^T$ | Dot products over contiguous rows of $X$ and $W$ when both layouts permit it. Use the strided path for general views. Keep the accumulation over input features in order. |
+| Weight gradient $D^TX$ | Accumulate into blocks of output rows with contiguous segments of $X$. Advance the batch index in order for each output element. |
+| Input gradient $DW$ | Walk each row of $W$ contiguously while accumulating into a row or a block of the output. Compare blocking sizes on both release layers. Keep this product at layer boundaries that consume it. |
 
-The module tree compiles the SoftmaxCE implementation in `optim/loss.rs`.
-The disconnected `optim/softmax.rs` stub is a cleanup candidate.
+For a first affine layer with $K$ inputs, $N$ outputs and batch size $B$,
+skipping its unused input gradient removes $BKN$ multiply-accumulate terms
+and the corresponding $[B,K]$ output buffer. This operation count informs
+priority. The paired step benchmark determines the elapsed-time gain.
+
+Use a straightforward safe implementation as the comparison point. SIMD,
+external matrix libraries, alternative accumulation orders and kernel-local
+packing are follow-up experiments when the profile identifies a remaining
+bottleneck. Fusion and scratch reuse should keep the live range of saved
+activations and effective weights explicit.
 
 ### 3.3 What should Roko be able to consume? [PROPOSED]
 
@@ -219,18 +230,34 @@ The contract reserves the zero-skipping latency claim for v0.2.0.
 
 | Check | Required comparison |
 | --- | --- |
-| Correctness first | Pass the same reference fixtures, deterministic training checks and relevant RTL checks before interpreting timing. Changes affecting the selected checkpoint or exported words regenerate candidate evidence. |
-| Compare one change | Pin baseline and candidate revisions, dataset and seeds, compiler and target, feature flags, release profile, and machine. For local kernels include small XOR shapes and MNIST training shapes. |
-| Measure the whole cost | Warm up, repeat, and record latency distribution, allocations, and peak temporary memory. Measure both isolated kernels and a full training step. Include cold packing and separately measured packing reuse. |
-| Decide before merging | State the workload, baseline, expected improvement and acceptable variance beforehand. Keep simpler code when differences are within noise. Record a meaningful gain together with any memory or code complexity cost. |
-| Keep the run reproducible | Retain commands, seed, input hashes and raw measurements under the project evidence policy. Generated `.mem`, waveforms, bitstreams and build products stay outside version control. |
+| Correctness first | Pass the same reference fixtures, deterministic training checks and relevant RTL checks before interpreting timing. For a work-removal refactor with unchanged arithmetic order, compare float outputs, gradients and updated parameters bit for bit on a pinned CPU fixture. Evaluate any deliberate floating-point change separately. Changes affecting the selected checkpoint or exported words regenerate candidate evidence. |
+| Compare one change | Pin baseline and candidate revisions, dataset and seeds, compiler and target, feature flags, release profile, and machine. Hold the model, optimizer, arithmetic and logging settings fixed unless one is the subject of the comparison. For local kernels include small XOR shapes and MNIST training shapes. |
+| Measure the whole cost | Warm up and repeat. Record median and p95 step latency, samples per second, allocation count and peak temporary bytes. Measure isolated kernels and the full step. Count packing and buffer preparation in end-to-end timings and report reuse separately. |
+| Decide before merging | State the primary metric and reference workloads before the run. Use repeated baseline runs to establish ordinary variance. Require a reproducible improvement in the target metric for a performance claim and check the protected workloads for regressions beyond that variance. Keep the simpler implementation when a more complex kernel has no repeatable gain. |
+| Keep the run reproducible | Retain commands, seed, input hashes and raw measurements under the project evidence policy. Generated `.mem`, waveforms, bitstreams and build products stay outside version control. [Run record and metrics](../EXPERIMENTS.md#how-should-benchmark-runs-be-recorded-proposed) |
 
 | Workload | Comparisons to run |
 | --- | --- |
 | Element-wise | Dense versus transposed and mixed-layout inputs. Compare direct traversal with one-time explicit packing over one use and repeated reuse. Benchmark unique and shared destinations separately for mutation. |
 | Affine layer | For each inner/output pair $(K,N)$ in $\{(784,64),(64,10)\}$, measure forward $[B,K]\times[K,N]$, weight gradient $[N,B]\times[B,K]$, and input gradient $[B,N]\times[N,K]$. Use batch size 1, the configured training batch size, and the final short batch when present. |
-| Full training step | Use one seeded batch and identical parameters. Measure batch gather, cached forward, loss, backward and BGD together. Report the same scope for every revision. |
+| Full training step | Use matched starting parameters and a seeded sequence of batches in float and QAT. Measure batch gather, weight projection when active, cached forward, loss, backward and optimizer together. Report telemetry with the same cadence and include the last short batch. |
 | Deployment | Measure artifact read and validation, inference with a ready model, and the full input-to-output path as separate timings. Report clock and target with cycle counts. |
+
+### 3.5 What makes the Rust API small and complete? [PROPOSED]
+
+Give each operation one documented home and make common operations usable
+through the public library. Exercise the public API with an external-crate
+example or integration fixture for the supported model, training and deployment
+paths. For a signature change, reconcile the affected specification conflicts
+recorded in Section 4.
+
+| Boundary | Design and acceptance |
+| --- | --- |
+| Composition | Keep a consuming builder for the sequential chain and a pure `forward`. Fold a flat sequence in forward order and walk the saved trace in reverse for backward. Apply each layer's calculus in that layer. Introduce actual recursive descent when an admitted composite owns other composites. The traced and plain forwards agree for the same input and parameters. |
+| Training | The loss owns its reduction and output gradient. The composite owns trace order. The optimizer owns parameter updates and any moments tied to the model's parameter order. Validate shapes and topology at construction or step entry so the numeric loop can assume them. Exercise the public calls from a deterministic small model through one complete update, including invalid shape and state cases. |
+| Tensor engine | Keep `map` and internal `zip_map` available for CPU implementation work. Expose named tensor operations for model code so storage, indexing and CPU kernels stay behind the operation boundary. Describe logical order, accepted ranks and layouts, shape errors and allocation behavior in the API documentation. |
+| Public exports | Inventory `lib.rs` re-exports against the documented entry points. Make deliberate exports for the supported surface and use the existing module paths during a compatibility transition. Resolve duplicate entry points, empty diagnostics and stubs in the area being changed. Public API examples should compile using the documented paths. [`lib.rs`](../../src/lib.rs), [API reference](../API.md) |
+| Scope | Favor a complete, tested path for `Tensor<f32>`, sequential affine layers and activations, the supported losses and optimizer, and ternary export with exact CPU evaluation. Add a new public abstraction when a supported operation or a documented consumer needs it. Keep generalized graphs and devices on their existing milestones. [Release boundaries](V0_CONTRACT.md#61-version-boundaries), [execution targets](../engineering/FUTURE_TARGETS.md#3-invariance-rules) |
 
 ---
 
@@ -240,7 +267,7 @@ The contract reserves the zero-skipping latency claim for v0.2.0.
 | --- | --- | --- |
 | [CONFLICT] | **Quantizer ties and tiny scales.** LOG-008 specifies ties away from zero and the spec separately gives strict comparisons. The implementation uses strict comparisons and a small-scale cutoff. Confirm the exact behavior, including $W_0 = 0$ and positive scales near the cutoff, before freezing release fixtures. | [Quantization specification](../engineering/specs/QUANT.md) and [LOG-008](research/LOG-008-v0_governance_and_release_decisions.md) |
 | [CONFLICT] | **External Q8.24 encoding versus internal rescaling.** The arithmetic document records both a target ties-to-even encoder and current normative truncate-toward-zero serialization. State the selected release encoder separately from the mandatory arithmetic floor inside the epilogue. The contract summary also calls the accumulator saturating, while the detailed arithmetic contract and PE keep a wide accumulator and saturate in the epilogue. | [Q8.24 arithmetic specification](../engineering/specs/ARITHMETIC_Q8_24.md) |
-| [CONFLICT] | **Program and wrapper scope.** The release contract and older roadmap mention `program.mem` or runtime shape controls. The later maintainer decision places the programmable top in v0.1.1. Align the release documents to that decision. | [LOG-008](research/LOG-008-v0_governance_and_release_decisions.md) and [assembly contract](../engineering/ASSEMBLY_AND_TEST_MODEL.md) |
+| [DECIDED] | **Program and wrapper scope.** v0.1.0 uses the manually assembled two-layer wrapper. `program.mem` and runtime shape controls belong to the v0.1.1 programmable top. | [Release contract](V0_CONTRACT.md#61-version-boundaries) · [LOG-008](research/LOG-008-v0_governance_and_release_decisions.md) |
 | [CONFLICT] | **Optimizer and statistics.** The older roadmap mentions Adam and a bootstrap interval. The release contract makes BGD the optimizer of record, specifies a 95% binomial interval, and requires the paired comparison for published accuracy claims. | [Release contract](V0_CONTRACT.md) |
 | [CONFLICT] | **Tensor surface and packed views.** The release contract lists generalized views, broadcasting, axis reductions and mutation capabilities. The implementation is partial and the later decision decouples typed storage from the release path. The tensor spec also names byte-backed T3 storage and byte-aligned views, while the code stores words and uses generic transpose. Record which surface must ship and resolve packing representation and view rules in their specification before extending the API. | [Release contract](V0_CONTRACT.md), [tensor specification](../engineering/specs/TENSOR.md), and [LOG-008](research/LOG-008-v0_governance_and_release_decisions.md) |
 | [CONFLICT] | **Backward composition and loss reduction.** The release contract calls for module-local backward and the model spec describes recursive composition. The training spec declares a composite method consuming an explicit output gradient. The implementation uses a free reverse pass over `Vec<AnyModule>` and takes a loss and targets. The SoftmaxCE formula in the training spec describes one example. State the batch reduction explicitly when reconciling the interface. Preserve the forward trace and a single source of the initial delta. | [Release contract §2.4](V0_CONTRACT.md#24-tensorized-analytical-backpropagation), [model specification](../engineering/specs/MODEL_TRAIT.md), [training specification](../engineering/specs/TRAINING.md) |
