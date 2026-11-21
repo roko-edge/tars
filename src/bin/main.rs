@@ -26,40 +26,60 @@ pub fn evaluate_accuracy(model: &Sequential, dataset: &[Data]) -> f32 {
 
 fn main() -> Result<(), Box<dyn Error>> {
     let mut train = experiments::mnist::train();
+    train.dataset.truncate(600);
+    train.epochs = 100;
+    let use_softmax = matches!(
+        &train.experiment_type,
+        experiments::experiment_type::ExperimentType::Mnist
+    );
 
     println!("Starting {:?} experiment...", train.experiment_type);
 
-    let step = (train.epochs / 20).max(1);
-    let optimizer = BGD::new(train.lr);
-    let mut prev_cost = cost(&train.model, &train.dataset);
-    println!("epoch: 000000, cost is:{:014.8}", prev_cost);
+    let mut optimizer = Adam::new(&train.model, train.lr);
+    let initial_cost = cost(&train.model, &train.dataset);
+    println!("initial cost: {initial_cost:014.8}");
 
-    let mut loader = DataMiniBatches::new(&train.dataset, 256, 42);
+    let mut loader = DataMiniBatches::new(&train.dataset, train.dataset.len(), 42);
 
-    for i in 1..=train.epochs {
+    for _ in 1..=train.epochs {
         for batch in loader.iter_epoch() {
             let cache = train.model.forward_cache(&batch.input);
-            let grad = backward(&train.model, &cache, &batch.target);
+            let logits = cache.output();
+
+            let target: Tensor<f32> = if use_softmax {
+                let sm_delta = SoftmaxCE.backward(logits, &batch.target);
+                let b = logits.shape()[0] as f32;
+                let out_sz = logits.shape()[1] as f32;
+                let mut adjusted = Tensor::zeros(batch.target.shape().to_vec());
+                for r in 0..logits.shape()[0] {
+                    for c in 0..logits.shape()[1] {
+                        adjusted.set(
+                            &[r, c],
+                            logits.get(&[r, c]) - (out_sz * b / 2.0) * sm_delta.get(&[r, c]),
+                        );
+                    }
+                }
+                adjusted
+            } else {
+                batch.target.clone()
+            };
+
+            let grad = backward(&train.model, &cache, &target, &MSE);
             optimizer.step(&mut train.model, &grad);
-        }
-
-        if i % step == 0 {
-            let curr_cost = cost(&train.model, &train.dataset);
-
-            println!(
-                "epoch: {:06.0}, cost is:{:014.8}, {:07.3}% better",
-                i,
-                curr_cost,
-                ((prev_cost - curr_cost) * 100.0) / prev_cost
-            );
-            prev_cost = curr_cost;
         }
     }
 
-    let scales;
-    (train.model, scales) = train.model.quantize();
-    export_model(&train.model, &scales)?;
-    export_inference(&train.model, &train.dataset)?;
+    let final_cost = cost(&train.model, &train.dataset);
+    println!("final cost: {final_cost:014.8}");
+    println!(
+        "total improvement: {:.3}%",
+        ((initial_cost - final_cost) * 100.0) / initial_cost
+    );
+
+    //let scales;
+    //(train.model, scales) = train.model.quantize();
+    //export_model(&train.model, &scales)?;
+    //export_inference(&train.model, &train.dataset)?;
 
     println!(
         "Accuracy: {:.2}%",
