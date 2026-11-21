@@ -55,7 +55,8 @@ cargo test
 
 `main` reports training progress and evaluates on the MNIST training split.
 Experiment configuration comes from the selected factory. Hardware export and
-visualization are separate from this command. [Training guide](docs/GETTING_STARTED.md#3-run-the-training-binary)
+visualization are separate from this command. [Training guide](docs/GETTING_STARTED.md#3-run-the-training-binary) ·
+[Benchmark records](docs/EXPERIMENTS.md#how-should-benchmark-runs-be-recorded-proposed)
 
 ## SystemVerilog
 

@@ -27,6 +27,7 @@ requirement to read everything.
 |---|---|---|
 | Prepare the environment and run TARS | [`GETTING_STARTED.md`](GETTING_STARTED.md) | Requirements, commands, current behavior, and operational limitations |
 | Train MNIST or inspect the OR and XOR factories | [`EXPERIMENTS.md`](EXPERIMENTS.md#built-in-experiments) | Model settings, training flow, and outputs |
+| Record or compare benchmark runs | [`EXPERIMENTS.md`](EXPERIMENTS.md#how-should-benchmark-runs-be-recorded-proposed) | Run capture, metric definitions, and single-thread CPU comparisons |
 | Inspect the current public surface | [`API.md`](API.md) | Implemented modules, operations, and stability boundaries |
 | Check visualization availability | [`VISUALIZATION.md`](VISUALIZATION.md) | Current stub and planned output |
 | Simulate the NPU prototype | [`../npu/README.md`](../npu/README.md) | Hardware environment, Make targets, and current simulation behavior |

@@ -17,6 +17,7 @@ library and do not establish that planned features are implemented.
 | Review the v0.1.0 target | [`V0_CONTRACT.md`](V0_CONTRACT.md) | Release acceptance criteria and future capabilities |
 | Verify project provenance and authorship | [`PROVENANCE.md`](PROVENANCE.md) | Origin, authorship, and development conditions of the public project |
 | Organize research evidence | [`research/README.md`](research/README.md) | Research-log and publication process |
+| Capture and compare benchmarks | [`EXPERIMENTS.md`](../EXPERIMENTS.md#how-should-benchmark-runs-be-recorded-proposed) | Run records, metric definitions, and CPU benchmark methodology |
 
 ---
 
