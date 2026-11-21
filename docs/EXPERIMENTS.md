@@ -48,6 +48,7 @@ factory supplies the identifier in its configuration.
 | `tars::experiments::or::train()` | `2 -> Linear(1) -> Sigmoid` | 100,000 | 20.0 | `ExperimentType::Or` |
 | `tars::experiments::xor::train()` | `2 -> Linear(4) -> Sigmoid -> Linear(1) -> Sigmoid` | 1,000,000 | 1.0 | `ExperimentType::Xor` |
 | `tars::experiments::mnist::train()` at `e7b7f64` | `784 → 10`, one affine layer | 10 | 0.003 | `ExperimentType::Mnist` |
+| `tars::experiments::mnist::train()` | `784 → 128 → 64 → 10`, ReLU after the hidden layers | 5 | 0.001 | `ExperimentType::Mnist` |
 
 The OR and XOR datasets contain the complete two-input truth table.
 
@@ -62,8 +63,9 @@ The OR and XOR datasets contain the complete two-input truth table.
 
 The executable selects `experiments::mnist::train()` in `src/bin/main.rs`.
 The factory takes images and labels from the MNIST training split and creates
-one-hot targets with ten classes. The runner at `e7b7f64` uses Adam and
-batches of 512.
+one-hot targets with ten classes. The baseline at `e7b7f64` uses Adam and
+batches of 512. The QAT experiment uses Adam and batches of 32 with scaled
+ternary weights represented in `f32`.
 [MNIST factory](../src/experiments/mnist.rs) · [Runner](../src/bin/main.rs)
 
 Selection is fixed in the source compiled into the executable. The small-model
@@ -78,8 +80,9 @@ cargo run --release --locked --bin main
 
 Each optimization step reads a batch from `DataMiniBatches`, records the forward
 trace, computes analytical parameter gradients, and updates the model. The
-runner derives synthetic MSE targets from the SoftmaxCE gradient and reports
-argmax accuracy on the training samples.
+baseline derives synthetic MSE targets from the SoftmaxCE gradient.
+The QAT path uses the SoftmaxCE gradient directly and updates latent
+float weights. Both paths report argmax accuracy on the training samples.
 Associate each report with its exact source. [API reference](API.md#3-training-operations)
 
 ## Exports and constraints
@@ -130,9 +133,14 @@ the runner snapshot or operator notes. Rounded percentages are insufficient to
 reconstruct exact counts. Use a new run ID for each rerun and keep revisions to
 the record traceable.
 
-[CONFLICT] The MNIST runner derives synthetic targets from the SoftmaxCE
-gradient and reports MSE on raw logits as `Loss (MSE)`. Record the objective,
-diagnostic and evaluation mode independently. [Runner](../src/bin/main.rs)
+[CONFLICT] The MNIST runner trains with SoftmaxCE and reports
+MSE on raw logits as `Loss (MSE)`. It also reports the projected checkpoint of
+its QAT run as `Ternary PTQ`. The value labeled `Performance degradation`
+is the latent-checkpoint accuracy minus the projected-checkpoint accuracy,
+in percentage points. Both evaluations use the training split. Record the
+objective, diagnostic and evaluation mode independently until the runner
+labels are reconciled.
+[Runner](../src/bin/main.rs)
 
 ### How can a maintainer capture the current runner today?
 
@@ -218,9 +226,9 @@ promotion in the [project research process](project/research/README.md).
 Compare TARS, Burn, Candle and PyTorch on the same CPU with a single compute
 thread. Start with dense `f32` on shared input and parameter fixtures. Record
 the backend, version, features, math libraries, internal precision and whether
-each row measures eager or compiled execution. The training runner includes
-batch gathering, forward, backward, and optimizer work. Include weight
-projection in the separate end-to-end QAT scope when supported.
+each row measures eager or compiled execution. The existing QAT training
+runner includes batch gathering, weight projection and training. Its throughput
+is an end-to-end result for that scope.
 
 | Framework | Initial comparison configuration |
 | --- | --- |
@@ -233,7 +241,7 @@ On Linux, choose the same allowed logical CPU for all processes. Keep the SMT
 sibling idle when it can be controlled. Pin the already-built executable or
 the Python benchmark process. Set worker limits before launch and verify the
 backend's thread settings separately from affinity. The example runs the
-current TARS MNIST runner and assumes `benchmark_cpu` contains the chosen CPU
+existing TARS QAT workload and assumes `benchmark_cpu` contains the chosen CPU
 index. Use the same prefix for the external benchmark executables or scripts.
 [Linux `taskset`](https://man7.org/linux/man-pages/man1/taskset.1.html)
 
@@ -246,7 +254,7 @@ env OMP_NUM_THREADS=1 MKL_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 \
 
 | Scope | Workload and units |
 | --- | --- |
-| Matrix kernels | Start at batch 32 with the first affine layer of the release model `784 → 64 → 10`. Time `[32,784] × [784,64]`, `[64,32] × [32,784]`, and `[32,64] × [64,784]` in forward, weight-gradient and input-gradient layouts respectively. Repeat with the second layer. Keep transposes as views where the API permits and account for any explicit packing. Report time per call and, optionally, `2 × M × N × K / elapsed_seconds` for a product of `[M,K]` and `[K,N]`. |
+| Matrix kernels | Start at batch 32 with the first affine layer of the development model. Time `[32,784] × [784,128]`, `[128,32] × [32,784]`, and `[32,128] × [128,784]` in forward, weight-gradient and input-gradient layouts respectively. Run the other layers and repeat with the release model `784 → 64 → 10`. Keep transposes as views where the API permits and account for any explicit packing. Report time per call and, optionally, `2 × M × N × K / elapsed_seconds` for a product of `[M,K]` and `[K,N]`. |
 | Ready-model inference | Measure the affine and activation chain with input and weights already loaded. Report batch-1 latency and batch-32 throughput. If rank-1 input takes a different kernel, record it separately from a rank-2 batch of one. |
 | Dense float training | Use shared initial parameters and preloaded batches. Time forward, cross-entropy, backward and one matched optimizer update. Request the same gradients and use the same loss reduction and optimizer hyperparameters. Check one-step logits, loss, gradients and parameter updates with a declared float tolerance before timing. Report milliseconds per batch and images per second. |
 | QAT and deployment | Compare QAT steps when all paths implement the same effective weights and gradient rule. Measure bit-exact ternary inference on one fixed exported artifact as its own workload. |

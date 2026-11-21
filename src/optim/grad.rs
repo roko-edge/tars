@@ -27,7 +27,6 @@ pub fn backward(
     let mut delta = loss.backward(pred, target);
 
     let b = pred.shape()[0];
-    let out_sz = pred.shape()[1];
 
     let mut grad = Grad {
         modules: model
@@ -42,15 +41,6 @@ pub fn backward(
             })
             .collect(),
     };
-
-    for i in 0..b {
-        for j in 0..out_sz {
-            delta.set(
-                &[i, j],
-                cost_derivative(pred.get(&[i, j]), target.get(&[i, j]), out_sz) / b as f32,
-            );
-        }
-    }
 
     for m in (0..model.modules.len()).rev() {
         match &model.modules[m] {

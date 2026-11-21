@@ -17,10 +17,14 @@ $$W_{\text{quant}} = W_0 \cdot Q(W)$$
 where $Q(W) \in \{-1, 0, +1\}^{m \times n}$.
 
 **[CONFLICT] Threshold and ties.** Section 1.1 specifies ties away from zero,
-while Section 1.2 and the implementation at `e7b7f64` use strict comparisons
-at the half-step. The implementation also uses a small-scale cutoff. The
-release rule for ties and small positive scales remains open.
-[Scalar quantizer](../../../src/quant/ternary.rs) ·
+while Section 1.2 shows strict comparisons at the half-step. The committed
+baseline at `e7b7f64` uses the half-step. The current scalar quantizer uses
+`0.9999999 * W₀`.
+Both apply a small-scale cutoff. The exporter calls the same scalar quantizer,
+so the new threshold changes which weights are emitted as zero in
+`wt.mem`. The two-bit trit mapping in Section 2 still applies. The release rule
+for the threshold, ties, and small positive scales remains open.
+[Scalar quantizer](../../../src/quant/ternary.rs) · [Exporter](../../../src/export.rs) ·
 [Release disposition](../../project/V0_DELIVERY_PLAN.md#4-which-decisions-need-an-explicit-disposition)
 
 ### 1.1 Scale Factor ($W_0$)

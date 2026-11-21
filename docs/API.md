@@ -1,7 +1,7 @@
 # Current Public API
 
 This document identifies the implemented public surface of the TARS Rust
-package at source revision `e7b7f64`. Internal design targets are maintained under
+package. Internal design targets are maintained under
 [`engineering/`](engineering/README.md).
 
 ---
@@ -28,6 +28,9 @@ See [`EXPERIMENTS.md`](EXPERIMENTS.md) for topologies, datasets, and execution b
 |---|---|---|
 | `Module` | Forward evaluation from `&Tensor<f32>` to `Tensor<f32>` | The trait currently exposes `forward` |
 | `Sequential` | `new(input_size, first_output_size)` creates the first dense layer. The consuming builder appends linear layers, ReLU, and sigmoid | Supports an ordered chain and records a training trace through `forward_cache` |
+| `Sequential::quantize` | Returns a model with scaled ternary weights represented as `f32`, plus one scale per linear layer | Biases and activations are carried over. Scales follow linear layer order |
+| `Sequential::num_weights`, `Sequential::num_parameters` | Count weights and, for parameters, biases | Activation modules contribute no parameters |
+| `Sequential::sparsity`, `Linear::sparsity` | Report weight sparsity | Apply to projected weights with positive scales in linear layer order. The strict comparison reports zero sparsity for an all-zero layer with a zero scale |
 | `Linear` | Construction from explicit parameters, zeros, or seeded initialization | The explicit constructor checks weight and bias shapes. Forward accepts one sample or a rank-two batch |
 | `Activation` | ReLU and sigmoid evaluation | No additional activation variants are implemented |
 | `AnyModule` | Runtime dispatch over linear and activation modules | Typed accessors panic when used with the wrong variant |
@@ -45,7 +48,7 @@ records the differences in backward composition.
 | `cost` | Computes mean squared error over outputs and samples | Empty or dimensionally inconsistent data is not guarded |
 | `Sequential::forward_cache` | Records the input and each module output as `Tensor<f32>` | The caller owns the cache for the training step |
 | `Loss`, `MSE`, `SoftmaxCE` | Evaluate float objectives and produce an output gradient | SoftmaxCE expects raw logits. See the delivery plan for the forward and gradient discrepancy at extreme logits |
-| `backward` | Walks the flat module list in reverse using a rank-two batch and its `ForwardCache`. Returns parameter gradients indexed by module | [CONFLICT] The implementation overwrites the selected loss gradient with an MSE derivative. |
+| `backward` | Walks the flat module list in reverse using a rank-two batch and its `ForwardCache`. Uses the selected loss's output gradient and returns parameter gradients indexed by module | Match the model and cache to the same forward pass |
 | `BGD`, `Adam` | Apply gradient updates to float parameters | Callers must pair compatible model, optimizer state, and gradient structures |
 
 The executable owns the training loop. The finite-difference verification gate

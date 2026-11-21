@@ -84,6 +84,18 @@ impl Linear {
         }
         (l, w0)
     }
+    pub fn sparsity(&self, w0: f32) -> (usize, f32) {
+        let mut total = 0;
+        let mut zeros = 0;
+        for o in 0..self.out_sz {
+            for w in 0..self.in_sz {
+                total += 1;
+                zeros += (self.weights.get(&[o, w]).abs() < w0) as usize;
+            }
+        }
+
+        (zeros, zeros as f32 / total as f32)
+    }
 }
 
 impl Module for Linear {
