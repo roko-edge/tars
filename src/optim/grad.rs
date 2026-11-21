@@ -1,6 +1,7 @@
 use crate::Activation;
 use crate::AnyModule;
 use crate::ForwardCache;
+use crate::Loss;
 use crate::Sequential;
 use crate::act_functions::*;
 use crate::tensor_core::{MatMul, Tensor};
@@ -16,9 +17,14 @@ pub struct Grad {
     pub modules: Vec<Option<LinearGrad>>,
 }
 
-pub fn backward(model: &Sequential, cache: &ForwardCache, target: &Tensor<f32>) -> Grad {
+pub fn backward(
+    model: &Sequential,
+    cache: &ForwardCache,
+    target: &Tensor<f32>,
+    loss: &dyn Loss,
+) -> Grad {
     let pred = cache.output();
-    let mut delta = Tensor::zeros(pred.shape().to_vec());
+    let mut delta = loss.backward(pred, target);
 
     let b = pred.shape()[0];
     let out_sz = pred.shape()[1];
