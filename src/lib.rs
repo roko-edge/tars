@@ -4,10 +4,9 @@ pub mod export;
 pub mod math;
 pub mod modules;
 pub mod optim;
+pub mod quant;
 pub mod tensor;
 pub mod train;
-//pub mod view;
-pub mod quant;
 
 pub use data::*;
 pub use experiments::*;
