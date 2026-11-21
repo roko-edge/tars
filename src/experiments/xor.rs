@@ -2,7 +2,7 @@ use crate::{experiment_type::ExperimentType, *};
 
 pub fn train() -> Train {
     Train {
-        model: Sequential::new(2).linear(4).sigmoid().linear(1).sigmoid(),
+        model: Sequential::new(2, 4).sigmoid().linear(1).sigmoid(),
         epochs: 1000000,
         lr: 1.0,
 

@@ -63,7 +63,7 @@ impl PackedT3Storage {
     const BITS_PER_ELEMENT: usize = 2;
 
     pub fn words(&self) -> &[u64] {
-        self.words.as_slice()
+        &self.words
     }
 }
 
