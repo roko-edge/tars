@@ -9,7 +9,7 @@ This document reflects the current state of the repository as of November 2026.
 
 ## State in Ten Lines
 
-1. The Rust package trains small MLPs (OR/XOR) with contiguous `Tensor<f32>` layers (PR #26) and `DataMiniBatches` seeded shuffling (PR #27); the tensor core migration is active across `F32` and `T3`, unblocking Track T quantization and MNIST integration.
+1. The Rust training path uses `Tensor<f32>` and `DataMiniBatches` seeded shuffling. Packed T3 storage is available independently. The [delivery plan](V0_DELIVERY_PLAN.md#11-what-did-the-training-and-tensor-audit-find-on-2026-11-21) records the current loss, MNIST, and quantization gaps.
 2. The NPU release engine is **dense ternary**: 2-bit weights, conditional add/subtract, a 64-bit accumulator, and a per-neuron $W_0$ epilogue (96-bit product, floor shift, two saturations).
 3. The ternary encoding is $v = b_0 - b_1$ ($00=0, 01=+1, 10=-1, 11=0$); all four 2-bit codes are valid. Confirmed by the maintainer in October 2026.
 4. RTL is organised in three layers: primitives (`t3_dec`, `pe`, `epilogue`), the single-layer engine (`layer_engine`), and a per-network wrapper (`npu.sv`, 784→64→10 by default).
@@ -29,14 +29,14 @@ This document reflects the current state of the repository as of November 2026.
 | Sequential Model | Implemented | `Sequential` stores `Vec<AnyModule>`; implements forward caching and `.quantize()` extracting layer-wise scales $W_0$ |
 | Dense Layer | Implemented | `Linear` uses contiguous `Tensor<f32>` weights and `Tensor<f32>` biases (PR #26); implements `.quantize()` returning quantized layer and scale $W_0$ (PR #30) |
 | Activations | Implemented | ReLU and Sigmoid modules |
-| Tensor Core | Implemented | `Tensor<T>` in `src/tensor/` implements typed-element dispatch (`F32`, `T3`), COW storage (`Arc<Vec<T>>`), packed ternary bit storage (`PackedT3Storage`), and strided geometry |
-| Loss Function | Implemented | Mean Squared Error (MSE) across outputs and dataset samples |
-| Analytical Backpropagation | Implemented | Full analytical backprop in `src/optim/grad.rs` (`backward()`) operating with `ForwardCache` |
-| Finite-Difference Gradient | Implemented | Centered finite differences in `src/optim/grad.rs` (`num_grad()`), retained for verification |
-| Optimizer | Implemented | Batch Gradient Descent (BGD) applying computed gradients |
-| Experiments | Implemented | Built-in OR and XOR experiment factories |
-| Fixed-Point & Ternary Export | Implemented | `export_model()` exports dense 2-bit ternary codes (`wt.mem`), per-layer scale parameters (`w0.mem` in Q8.24), and biases (`bias.mem` in Q8.24) under `npu/data/` (PR #30). `export_data()` exports activations and targets |
-| Automated Tests | Available | `cargo test` executes 20/20 unit and integration tests cleanly across core library, math distributions, and tensor operations |
+| Tensor Core | Implemented | Typed `Tensor<T>` with strided geometry and copy-on-write storage. The float backend uses `Arc<Vec<f32>>`. The experimental T3 backend packs 32 trits per `u64` |
+| Loss Function | [CONFLITO] | MSE and SoftmaxCE implement `Loss`. SoftmaxCE forward clamps probabilities while its backward uses the unclamped gradient |
+| Analytical Backpropagation | [CONFLITO] | The free `backward` function traverses the module list in reverse using `ForwardCache`. It overwrites the selected loss's initial gradient with the legacy MSE derivative |
+| Finite-Difference Gradient | [PENDENTE] | The current source tree has no `num_grad` implementation or full-model finite-difference verification |
+| Optimizer | Implemented | `BGD` and `Adam` update float parameters. The MNIST runner uses Adam while the release baseline specifies BGD |
+| Experiments | Implemented | Built-in OR, XOR, and MNIST factories. The MNIST runner evaluates against training data |
+| Fixed-Point & Ternary Export | Partial | `export_model` writes dense 2-bit ternary codes (`wt.mem`), Q8.24 scales (`w0.mem`), and Q8.24 biases (`bias.mem`). `export_inference` writes inputs and float-derived expected outputs under `npu/data/` |
+| QAT and fixed-point reference | [PENDENTE] | The QAT step using STE and the independent Q8.24 evaluator are tracked in the delivery plan |
 
 The Rust implementation uses contiguous `Tensor<f32>` storage and matrix multiplication. Analytical backpropagation operates through `ForwardCache`. Quantization maps latent weights to ternary states scaled by layer-wise $W_0$.
 
@@ -71,13 +71,13 @@ The package exports a `view` module backed by `petgraph`. `NetGraph::network_to_
 | Command | Status | Notes |
 |---|---|---|
 | `cargo build` | Available | Compiles the Rust package and binaries |
-| `cargo run --bin main` | Available | Trains the XOR model using pure `Tensor<f32>`, forward cache, and `DataMiniBatches`. |
+| `cargo run --bin main` | Available | The runner selects the MNIST factory and trains with a forward cache and `DataMiniBatches` |
 | `cargo run --bin visualization` | Available | Requires Graphviz; generates graph DOT and PNG artifacts |
-| `cargo test` | Available | Unit and integration tests execute green across all suites (20/20 pass: 14 tensor tests, 3 math distribution tests, and 3 packed ternary tests). |
+| `cargo test` | Available | Runs the Rust unit and integration suites. The 2026-11-21 source audit did not run the gate |
 | `make sim` (from `npu/`) | Available | Runs legacy smoke simulation (`tests/tb.sv`, prints results, dumps waveforms to `build/dump.vcd`). Uses `-Wno-fatal` |
 | `make test` / `make all` | Available | Executes Tier 1 testbench `test-core` (`tests/tb_core.sv`); propagates exit code with `$fatal` assertions on mismatch. Exits zero |
 | `make test-core` | Available | Compiles and executes `tests/tb_core.sv` in `build/core/tb_core_sim`; asserts deterministic hand-calculated Q8.24 outputs |
-| `make test-parity` | Pending | Tier 2 golden-vector parity test; Step 1 exporter landed in PR #30, awaiting `tb_parity.sv` |
+| `make test-parity` | Available | Runs `tb_parity.sv`. The comparator allows a one-LSB difference and loads `target.mem`, which the current exporter fills with float-derived predictions |
 | `make wave` | Available | Runs GTKWave against `build/dump.vcd` generated from simulation |
 | `make lint` | Available | Runs `verilator --lint-only -Wall --top-module npu -f files.f` (top `npu` covers the wrapper, engines, and primitives); exits zero with no `WIDTHTRUNC`/`WIDTHEXPAND`/`UNDRIVEN` findings. The two `WIDTHEXPAND` findings on the `safe_log(IN)`/`safe_log(OUT)` calls were resolved with explicit `64'` casts (October 2026); verified under Verilator 5.048 and 5.052 |
 | `make clean` | Available | Cleans NPU build outputs |
@@ -86,11 +86,10 @@ The package exports a `view` module backed by `petgraph`. `NetGraph::network_to_
 
 ## Known Technical Limitations
 
-1. **Testbench Self-Checking (Tier 1 vs Tier 2):** Tier 1 core assertions exist in `tests/tb_core.sv` and run via `make test`. Tier 2 golden-vector parity assertions (`tests/tb_parity.sv`) against the Rust bit-exact model and ternary export artifacts (`wt.mem`, `w0.mem` landed in PR #30) are the active Step 1 implementation target.
+1. **Testbench Self-Checking (Tier 1 vs Tier 2):** Tier 1 core assertions run through `make test`. The Tier 2 bench is present. Exact comparison with the independent Rust integer reference remains the release gate.
 2. **Q8.24 Rounding Strategy:** Rust export (`src/export.rs`) truncates toward zero (`as i32`), while the NPU epilogue reduces the 96-bit $W_0$ product with an arithmetic right shift (floor toward negative infinity, `npu/src/epilogue.sv`). The golden model must replicate the floor semantics for bit-exact parity; neither side uses round-half-to-even.
 3. **Vector Tensor Storage (Resolved in PR #26):** Linear layers and backward passes have migrated to contiguous `Tensor<f32>` storage and matrix multiplication (`matmul`), eliminating `Vec<Vec<f32>>` in model execution. Residual legacy vector dependencies in `export.rs` have been updated to the tensor access interface.
-4. **Gradient Verification:** The analytical and finite-difference gradients share the same scale, but the finite-difference estimator evaluates the loss difference in single precision with a step of $10^{-3}$, which places the attainable precision near the tolerance of $\epsilon \le 10^{-4}$ required by the project roadmap. Accumulation in double precision and a relative tolerance are required before the check is authoritative.
-5. **Artifact Integration:** The export calls in the training binary are commented out, so the checked-in `npu/data/` files remain from an earlier export and are not overwritten by a training run. Exports omit activation functions and topology, and `target.mem` contains dataset labels rather than golden Q8.24 inference outputs.
-6. **Determinism:** The PRNG and the layer initializer draw from the unseeded global generator, so training runs and the distribution tests are not reproducible; the project invariant requiring seeded generation is not yet met.
+4. **Gradient Verification:** The release gate requires finite differences on the float graph. Verify the loss reduction and both weight and bias gradients on a deterministic multilayer fixture. [Delivery plan](V0_DELIVERY_PLAN.md#22-how-do-we-restore-trustworthy-training-pendente)
+5. **Artifact Integration:** The training runner leaves hardware export inactive. The exporter omits topology and activations. When invoked, `export_inference` writes float-derived predictions to `target.mem`. The independent Q8.24 reference must supply release expectations.
+6. **Determinism:** The initializer advances a seeded generator within each layer and restarts from a fixed seed for every layer. The batch loader maintains its own epoch seed. A configured initialization stream across layers remains pending.
 7. **RTL Activation Unit:** The activation unit implements ReLU only; `SIGMOID` is declared in `npu_pkg::activation_t` as reserved and falls through to the identity path, so selecting it routes the saturated sum unchanged. The sigmoid output layer of the built-in experiments has no hardware equivalent under the current sources, and the testbench must keep `act_fn != SIGMOID` until it is implemented.
-8. **Numerical Gradient Check:** `num_grad` has no callers; the finite-difference verification required by the roadmap is not exercised by any test or binary.
