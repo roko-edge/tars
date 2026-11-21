@@ -3,7 +3,7 @@
 **Document type:** Project status record. User instructions are maintained in
 [`docs/`](../README.md).
 
-This source snapshot covers `e7b7f64`, inspected on 2026-11-21.
+This source snapshot covers the MNIST QAT experiment inspected on 2026-11-21.
 The command table records available entry points. Release evidence is tied
 to its tested revision in the [delivery plan](V0_DELIVERY_PLAN.md).
 
@@ -20,7 +20,7 @@ to its tested revision in the [delivery plan](V0_DELIVERY_PLAN.md).
 7. Dense ternary weight export (`wt.mem`) and per-layer scales (`w0.mem`) are implemented in `src/export.rs` (PR #30); checked-in legacy `npu/data/` files remain retained for `tb.sv`.
 8. The manual wrapper is the v0.1.0 assembly. The programmable top is scheduled for v0.1.1. [Scope decision](research/LOG-008-v0_governance_and_release_decisions.md#2-maintainer-decisions-november-2026)
 9. Release target: MNIST $784 \to 64 \to 10$ bit-exact against the Rust model, ternary accuracy $> 90\%$; tag v0.1.0.
-10. The MNIST runner uses Adam and reports accuracy on the training split. The official float baseline and verified QAT path remain [PENDING].
+10. The MNIST runner executes QAT with scaled ternary weights represented in `f32` and updates latent float parameters. Its accuracy reports use the training split.
 
 ---
 
@@ -33,12 +33,12 @@ to its tested revision in the [delivery plan](V0_DELIVERY_PLAN.md).
 | Activations | Implemented | ReLU and Sigmoid modules |
 | Tensor Core | Implemented | Typed `Tensor<T>` with strided geometry and copy-on-write storage. The float backend uses `Arc<Vec<f32>>`. The experimental T3 backend packs 32 trits per `u64` |
 | Loss Function | [CONFLICT] | MSE and SoftmaxCE implement `Loss`. SoftmaxCE forward clamps probabilities while its backward uses the unclamped gradient |
-| Analytical Backpropagation | [CONFLICT] | The free `backward` function traverses `ForwardCache` in reverse and overwrites the selected delta with the legacy MSE derivative. The module-local composition contract remains open. |
+| Analytical Backpropagation | [CONFLICT] | The free `backward` function traverses `ForwardCache` in reverse and uses the selected loss's output gradient. The module-local composition contract remains open. |
 | Finite-Difference Gradient | [PENDING] | The current source tree has no `num_grad` implementation or full-model finite-difference verification |
 | Optimizer | Implemented | `BGD` and `Adam` update float parameters. The MNIST runner uses Adam while the release baseline specifies BGD |
 | Experiments | Implemented | Built-in OR, XOR, and MNIST factories. The MNIST runner evaluates against training data |
 | Fixed-Point & Ternary Export | Partial | `export_model` writes dense 2-bit ternary codes (`wt.mem`), Q8.24 scales (`w0.mem`), and Q8.24 biases (`bias.mem`). `export_inference` writes inputs and float-derived expected outputs under `npu/data/` |
-| QAT and fixed-point reference | [PENDING] | The release QAT runner, independent Q8.24 evaluator, and STE verification are tracked in the delivery plan. |
+| QAT and fixed-point reference | [PENDING] | The MNIST runner exercises QAT. The independent Q8.24 evaluator and the release verification of the STE remain open. |
 
 The Rust implementation uses contiguous `Tensor<f32>` storage and matrix multiplication. Analytical backpropagation operates through `ForwardCache`. Quantization maps latent weights to ternary states scaled by layer-wise $W_0$.
 

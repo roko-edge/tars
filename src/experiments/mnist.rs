@@ -17,11 +17,15 @@ pub fn train() -> Train {
         .collect();
 
     Train {
-        model: Sequential::new(784, 10),
+        model: Sequential::new(784, 128)
+            .relu()
+            .linear(64)
+            .relu()
+            .linear(10),
 
-        epochs: 10,
+        epochs: 5,
 
-        lr: 0.003,
+        lr: 0.001,
 
         dataset,
 

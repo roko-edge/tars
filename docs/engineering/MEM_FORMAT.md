@@ -26,6 +26,11 @@ the word bits. The RTL epilogue instead uses an arithmetic right shift when
 rescaling the wide accumulator product. [Quantization encoding](specs/QUANT.md#2-canonical-hardware-code-serialization) ·
 [Q8.24 arithmetic](specs/ARITHMETIC_Q8_24.md)
 
+`export_model` uses the same scalar quantizer as training to select each
+weight's trit. A threshold change can produce different `wt.mem` contents
+with the same encoding and order. The threshold and tie rules remain
+[CONFLICT] in the [quantization specification](specs/QUANT.md#1-mathematical-formulation).
+
 ## Which artifacts are legacy?
 
 The legacy `tb.sv` smoke test reads `weights.mem`, `bias.mem` and

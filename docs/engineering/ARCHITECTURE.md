@@ -41,8 +41,8 @@ differences are a verification task. [Current public API](../API.md) ·
 ## Training executable
 
 `main` calls the MNIST factory and reports progress and accuracy over the
-training data. The experiment guide records the runner configuration for
-the inspected source revision. The training command leaves export and
+training data. The experiment guide records the baseline configuration and
+the current QAT experiment. The training command leaves export and
 visualization to their own entry points. [Experiment configurations](../EXPERIMENTS.md#selection-and-execution)
 
 ## Visualization

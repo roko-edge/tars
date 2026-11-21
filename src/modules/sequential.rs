@@ -86,6 +86,25 @@ impl Sequential {
 
         cache
     }
+    pub fn num_weights(&self) -> usize {
+        self.modules
+            .iter()
+            .map(|m| match m {
+                AnyModule::Linear(l) => l.weights.numel(),
+                AnyModule::Activation(_) => 0,
+            })
+            .sum()
+    }
+    pub fn num_parameters(&self) -> usize {
+        self.modules
+            .iter()
+            .map(|m| match m {
+                AnyModule::Linear(l) => l.weights.numel() + l.bias.numel(),
+                AnyModule::Activation(_) => 0,
+            })
+            .sum()
+    }
+
     pub fn quantize(&self) -> (Sequential, Vec<f32>) {
         let mut out = self.clone();
         let mut scales = Vec::new();
@@ -101,6 +120,27 @@ impl Sequential {
             }
         }
         (out, scales)
+    }
+    pub fn sparsity(&self, scales: &[f32]) -> (f32, Vec<f32>) {
+        let mut sparsities = Vec::new();
+        let mut total_zeros = 0;
+        let mut pos = 0;
+        for m in &self.modules {
+            match m {
+                AnyModule::Linear(l) => {
+                    let zeros;
+                    let s0;
+                    (zeros, s0) = l.sparsity(scales[pos]);
+                    total_zeros += zeros;
+
+                    sparsities.push(s0);
+                    pos += 1;
+                }
+                _ => (),
+            }
+        }
+
+        (total_zeros as f32 / self.num_weights() as f32, sparsities)
     }
 }
 

@@ -33,7 +33,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     let mut optimizer = Adam::new(&train.model, train.lr);
 
-    let mut loader = DataMiniBatches::new(&train.dataset, 512, 42);
+    let mut loader = DataMiniBatches::new(&train.dataset, 32, 42);
 
     println!(
         "============================================================================================"
@@ -50,37 +50,21 @@ fn main() -> Result<(), Box<dyn Error>> {
     );
 
     let training_start = Instant::now();
-
+    let loss_fn: &dyn Loss = if use_softmax { &SoftmaxCE } else { &MSE };
     for i in 1..=train.epochs {
         let epoch_start = Instant::now();
         let mut epoch_loss = 0.0;
         let mut batch_count = 0;
 
         for batch in loader.iter_epoch() {
-            let cache = train.model.forward_cache(&batch.input);
-            let logits = cache.output();
+            let (effective_model, _) = train.model.quantize();
+            let cache = effective_model.forward_cache(&batch.input);
+            let grad = backward(&effective_model, &cache, &batch.target, loss_fn);
 
-            let target: Tensor<f32> = if use_softmax {
-                let sm_delta = SoftmaxCE.backward(logits, &batch.target);
-                let b = logits.shape()[0] as f32;
-                let out_sz = logits.shape()[1] as f32;
-                let mut adjusted = Tensor::zeros(batch.target.shape().to_vec());
-                for r in 0..logits.shape()[0] {
-                    for c in 0..logits.shape()[1] {
-                        adjusted.set(
-                            &[r, c],
-                            logits.get(&[r, c]) - (out_sz * b / 2.0) * sm_delta.get(&[r, c]),
-                        );
-                    }
-                }
-                adjusted
-            } else {
-                batch.target.clone()
-            };
-
-            let grad = backward(&train.model, &cache, &target, &MSE);
+            //let cache = train.model.forward_cache(&batch.input);
+            //let grad = backward(&train.model, &cache, &batch.target, loss_fn);
             optimizer.step(&mut train.model, &grad);
-            // Telemetria zero-overhead:
+
             let pred = cache.output();
             if let (Some(p_slice), Some(t_slice)) = (pred.as_slice(), batch.target.as_slice()) {
                 let batch_loss: f32 = p_slice
@@ -118,11 +102,23 @@ fn main() -> Result<(), Box<dyn Error>> {
         "============================================================================================"
     );
 
+    let f32_accuracy = evaluate_accuracy(&train.model, &train.dataset);
     println!(
-        "Final accuracy: {:.2}%  | Average throughput: {:>8.0} img/s",
-        evaluate_accuracy(&train.model, &train.dataset),
+        "F32 final accuracy: {:.2}%  | Average throughput: {:>8.0} img/s",
+        f32_accuracy,
         (train.dataset.len() * train.epochs) as f64 / training_duration.as_secs_f64()
     );
 
+    let scales;
+    (train.model, scales) = train.model.quantize();
+
+    let t3_accuracy = evaluate_accuracy(&train.model, &train.dataset);
+    let (sparsity, _) = train.model.sparsity(&scales);
+    println!(
+        "Ternary PTQ accuracy: {:.2}% | Sparsity: {:.2}% | Performance degradation f32->T3: {:.2}% ",
+        t3_accuracy,
+        sparsity * 100.0,
+        f32_accuracy - t3_accuracy
+    );
     Ok(())
 }
