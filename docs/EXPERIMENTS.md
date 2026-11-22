@@ -2,14 +2,15 @@
 
 **Audience:** Users running the OR, XOR, and MNIST configurations.
 
-This page describes the experiment API and training flow currently implemented in
-TARS. Experiment definitions configure a run; the executable owns the training loop.
+Experiment definitions configure a run. At `4961a9e` the executable owns the
+training loop. The latest inspected working tree moves it into `Trainer::fit`.
+[Working-tree training API status](API.md#3-training-operations)
 
 ## Module structure
 
 | Source | Responsibility |
 |---|---|
-| [`src/train.rs`](../src/train.rs) | Shared `Train` configuration |
+| [`src/train.rs`](../src/train.rs) | Shared `Train` configuration and working-tree `Trainer::fit` loop |
 | [`src/experiments.rs`](../src/experiments.rs) | Public experiment modules |
 | [`src/experiments/experiment_type.rs`](../src/experiments/experiment_type.rs) | `ExperimentType` identifiers |
 | [`src/experiments/or.rs`](../src/experiments/or.rs) | OR configuration factory |
@@ -24,7 +25,7 @@ public modules.
 
 ## Configuration contract
 
-`Train` is a struct deriving `Debug` and `Clone`, with these public fields:
+The working-tree `Train<L: Loss>` groups these public fields:
 
 | Field | Type | Purpose |
 |---|---|---|
@@ -32,11 +33,13 @@ public modules.
 | `epochs` | `usize` | Number of passes over the training data |
 | `lr` | `f32` | Learning rate supplied to the optimizer |
 | `dataset` | `Vec<Data>` | Input and target tensors in `f32` |
-| `experiment_type` | `ExperimentType` | Identifier printed when the run starts |
+| `experiment_type` | `ExperimentType` | Experiment identifier |
+| `loss` | `L` | Training objective passed to `Trainer::new` |
 
-Each experiment exposes `pub fn train() -> Train` to construct a fresh model
-and dataset. `Sequential::linear` calls `Linear::random`, which starts a fixed
-seeded generator for each layer and initializes biases to zero.
+Each working-tree factory returns `Train` parameterized by its loss. MNIST
+uses `SoftmaxCE`, and OR and XOR use `MSE`. `Sequential::linear` calls
+`Linear::random`, which starts a fixed seeded generator for each layer and
+initializes biases to zero.
 
 `ExperimentType` provides `Or`, `Xor`, `Mnist`, and `Custom` identifiers. Each
 factory supplies the identifier in its configuration.
@@ -48,7 +51,9 @@ factory supplies the identifier in its configuration.
 | `tars::experiments::or::train()` | `2 -> Linear(1) -> Sigmoid` | 100,000 | 20.0 | `ExperimentType::Or` |
 | `tars::experiments::xor::train()` | `2 -> Linear(4) -> Sigmoid -> Linear(1) -> Sigmoid` | 1,000,000 | 1.0 | `ExperimentType::Xor` |
 | `tars::experiments::mnist::train()` at `e7b7f64` | `784 → 10`, one affine layer | 10 | 0.003 | `ExperimentType::Mnist` |
-| `tars::experiments::mnist::train()` | `784 → 128 → 64 → 10`, ReLU after the hidden layers | 5 | 0.001 | `ExperimentType::Mnist` |
+| `tars::experiments::mnist::train()` at `4961a9e` | `784 → 128 → 64 → 10`, ReLU after the hidden layers | 5 | 0.001 | `ExperimentType::Mnist` |
+| Earlier MNIST working-tree snapshot on 2026-11-22 | `784 → 64 → 10`, ReLU after the hidden layer | 100 | 0.001 | `ExperimentType::Mnist` |
+| MNIST working tree with `Trainer::fit` | `784 → 64 → 10`, ReLU after the hidden layer | 50 | 0.001 | `ExperimentType::Mnist` |
 
 The OR and XOR datasets contain the complete two-input truth table.
 
@@ -64,9 +69,20 @@ The OR and XOR datasets contain the complete two-input truth table.
 The executable selects `experiments::mnist::train()` in `src/bin/main.rs`.
 The factory takes images and labels from the MNIST training split and creates
 one-hot targets with ten classes. The baseline at `e7b7f64` uses Adam and
-batches of 512. The QAT experiment uses Adam and batches of 32 with scaled
-ternary weights represented in `f32`.
+batches of 512. The QAT experiment at `4961a9e` uses Adam and batches of 32
+with scaled ternary weights represented in `f32`. An earlier working-tree snapshot
+uses float training with Adam and batches of 64, fits the first 50,000 samples
+from the official training split, and evaluates on the remaining training
+samples. The reader exposes the official test split separately.
 [MNIST factory](../src/experiments/mnist.rs) · [Runner](../src/bin/main.rs)
+
+The working tree with `Trainer::fit` uses the same split and batch size on
+the assembled `784 → 64 → 10` topology. It trains in float mode with Adam and
+evaluates the final float model and its scaled float PTQ projection on the
+reserved suffix. This is an experimental host workflow. The release comparison
+uses the official test split and the independent integer inference path.
+[Working-tree API status](API.md#3-training-operations) ·
+[Release plan](project/V0_DELIVERY_PLAN.md#23-how-do-we-measure-and-improve-quantized-accuracy-pending)
 
 Selection is fixed in the source compiled into the executable. The small-model
 factories supply training data and topology for OR and XOR. Their MSE regression
@@ -80,10 +96,15 @@ cargo run --release --locked --bin main
 
 Each optimization step reads a batch from `DataMiniBatches`, records the forward
 trace, computes analytical parameter gradients, and updates the model. The
-baseline derives synthetic MSE targets from the SoftmaxCE gradient.
-The QAT path uses the SoftmaxCE gradient directly and updates latent
-float weights. Both paths report argmax accuracy on the training samples.
-Associate each report with its exact source. [API reference](API.md#3-training-operations)
+baseline at `e7b7f64` derives synthetic MSE targets from the SoftmaxCE gradient.
+The QAT path at `4961a9e` uses the SoftmaxCE gradient directly and updates
+latent float weights. Those two committed snapshots report argmax accuracy on
+the samples used for training. The earlier working-tree snapshot uses a disjoint
+suffix of the official training split. Release accuracy
+requires a frozen checkpoint and independent test data. Associate each
+report with its exact source, including local configuration overrides.
+[Held-out evaluation protocol](project/V0_DELIVERY_PLAN.md#231-how-do-we-keep-the-final-mnist-evaluation-independent-proposed) ·
+[API reference](API.md#3-training-operations)
 
 ## Exports and constraints
 
@@ -96,8 +117,8 @@ in a batch must have consistent input and target shapes.
 
 A human maintainer can extend the same pattern:
 
-1. Define a module under `src/experiments/` with a `pub fn train() -> Train` factory.
-2. Supply all five configuration fields, including a matching experiment identifier.
+1. Define a module under `src/experiments/` with a `train()` factory returning `Train` parameterized by the chosen loss type.
+2. Supply the configuration fields, including the loss and a matching experiment identifier.
 3. Add the identifier to `ExperimentType` and expose the module in
    `src/experiments.rs`.
 4. Select the factory in `src/bin/main.rs`, rebuild, and run the executable.
@@ -133,13 +154,16 @@ the runner snapshot or operator notes. Rounded percentages are insufficient to
 reconstruct exact counts. Use a new run ID for each rerun and keep revisions to
 the record traceable.
 
-[CONFLICT] The MNIST runner trains with SoftmaxCE and reports
-MSE on raw logits as `Loss (MSE)`. It also reports the projected checkpoint of
-its QAT run as `Ternary PTQ`. The value labeled `Performance degradation`
-is the latent-checkpoint accuracy minus the projected-checkpoint accuracy,
-in percentage points. Both evaluations use the training split. Record the
-objective, diagnostic and evaluation mode independently until the runner
-labels are reconciled.
+[CONFLICT] The `4961a9e` runner and both inspected working-tree snapshots train
+with SoftmaxCE and report an unweighted average of batch MSE on raw logits as
+`Loss (MSE)`. In `4961a9e`, `Ternary PTQ` labels the projected evaluation of a
+QAT checkpoint. In the float working-tree run, it labels PTQ on the float
+checkpoint, evaluated through a scaled `f32` projection. The earlier working-tree
+throughput uses the full dataset length even though fit consumes 50,000
+samples per epoch. `Trainer::fit` uses the length of the fit slice for
+throughput. `Performance degradation` is the accuracy difference in
+percentage points. Record the objective, diagnostic, actual processed count
+and evaluation path independently until the runner reports them directly.
 [Runner](../src/bin/main.rs)
 
 ### How can a maintainer capture the current runner today?
@@ -208,7 +232,7 @@ promotion in the [project research process](project/research/README.md).
 | Accuracy uncertainty | For a fixed checkpoint and held-out evaluation, a proposed method is a two-sided 95% exact binomial interval (Clopper–Pearson) from `correct` and `total`. Summarize between-seed variation separately. [NIST exact binomial limits](https://itl.nist.gov/div898/software/dataplot/refman2/auxillar/exacbici.htm) |
 | Paired comparison | On the predeclared pair evaluated over the same IDs, record both correct, both wrong, reference only correct ($b$), and candidate only correct ($c$). Verify that these counts sum to $n$ and the signed difference is $100(c-b)/n$ percentage points. For the proposed two-sided exact McNemar test, use $\min(1, 2\Pr[\operatorname{Bin}(b+c, 1/2) \le \min(b,c)])$, with $p=1$ when there are no discordances. Record the variant alongside the effect. [Fagerland et al., exact conditional McNemar](https://doi.org/10.1186/1471-2288-13-91) |
 | Ternary sparsity | Divide emitted zero trits by total weight trits. Report each layer and the ratio of summed counts across layers. Verify negative, zero and positive counts add up per layer. Exclude bias and wire padding. |
-| Training throughput | Divide total processed samples by total wall time in the declared training window. Report samples per step, optimizer steps and the window's inclusions. Summarize repeated step timings with median and p95 and retain the raw observations. |
+| Training throughput | Divide the sample count from batches actually processed by total wall time in the declared training window. Use the actual length of each batch, including a short final batch. Report samples per step, optimizer steps and the window's inclusions. Summarize repeated step timings with median and p95 and retain the raw observations. |
 | Time to target quality | Predeclare a development-set target, evaluation cadence and budget. Record wall time and samples or steps to the first observed crossing, including scheduled evaluations in the timer. Record runs that reach the budget without crossing. [MLPerf Training benchmark paper](https://arxiv.org/abs/1910.01500) |
 | Bit-exact parity | Check that the artifact identity and output counts match and that every compared word equals its reference word. Report comparisons and mismatches. Keep parity, inference cycles and end-to-end latency as independently scoped results. |
 

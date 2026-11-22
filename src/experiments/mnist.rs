@@ -17,13 +17,9 @@ pub fn train() -> Train<SoftmaxCE> {
         .collect();
 
     Train {
-        model: Sequential::new(784, 128)
-            .relu()
-            .linear(64)
-            .relu()
-            .linear(10),
+        model: Sequential::new(784, 64).relu().linear(10),
 
-        epochs: 5,
+        epochs: 50,
 
         lr: 0.001,
 
