@@ -1,11 +1,13 @@
 # AGENTS.md — Automation & Git Policy
 
-**Status:** [DECIDED] by the repository owner (2026-10-28; amended 2026-10-30; **amended 2026-11-19**).
+**Status:** [DECIDED] by the repository owner (2026-10-28, amended 2026-10-30, 2026-11-19, and 2026-11-22).
 Effective on commit. The 2026-11-19 amendment authorizes agents to execute the
 git workflow (staging, commit, push, PR creation) for human-written code, while
 maintaining strict human ownership of all code files (.rs, .sv, .svh, testbenches):
 agents never write or edit code files directly, acting exclusively by proposing
 diffs in chat, teaching, and researching implementation methods.
+The 2026-11-22 amendment requires agents to run the applicable verification
+gates and inspect their results before committing or pushing changes.
 **Scope:** this repository. Human-only: code writing and editing (§1), measured data and academic
 text (see tars-research/AGENTS.md — that divergence is intentional).
 
@@ -29,7 +31,8 @@ workflow (staging, commit, push, PR creation) adhering strictly to the attributi
 and commit protocols of §3.
 
 Agents never push directly to `main`, never rewrite history, and never touch
-`AUTHORS`, `LICENSE`, `CITATION*`, or generated artifacts.
+`AUTHORS`, `LICENSE`, or `CITATION*`. Verification commands may produce their
+normal build outputs. The generated-artifact exclusions in §3 apply.
 
 ## 2. Git operations — allowlist (not listed = ask first)
 
@@ -102,12 +105,15 @@ Agents never push directly to `main`, never rewrite history, and never touch
    repositories; no proprietary engine internals. Any doubt → stop and ask.
 3. **Litmus:** *would a competitor with a good LLM gain meaningful time reading
    this diff or message?* If yes → stop and ask.
-4. **Gates green** for the area touched (there is **no root Makefile**):
+4. **Gates green** for the area touched. Agents run the applicable commands
+   and inspect their results before committing or pushing. Report failures
+   or unavailable checks. Record a pass only for an observed run tied to the
+   tested revision. There is **no root Makefile**.
 
    | Area | Gate |
    |---|---|
-   | Rust (`*.rs`) | `cargo test` (human runs; agents may read results) |
-   | RTL (`npu/`) | `make -C npu lint` and `make -C npu test` (human runs) |
+   | Rust (`*.rs`) | `cargo test` |
+   | RTL (`npu/`) | `make -C npu lint` and `make -C npu test` |
    | Docs / build files | checklist only |
 
 5. **Atomic:** two unrelated concerns in one diff → split before committing.
