@@ -1,6 +1,6 @@
 use crate::{experiment_type::ExperimentType, *};
 
-pub fn train() -> Train {
+pub fn train() -> Train<MSE> {
     Train {
         model: Sequential::new(2, 4).sigmoid().linear(1).sigmoid(),
         epochs: 1000000,
@@ -14,5 +14,7 @@ pub fn train() -> Train {
         ],
 
         experiment_type: ExperimentType::Xor,
+
+        loss: MSE,
     }
 }

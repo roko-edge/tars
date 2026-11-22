@@ -12,7 +12,7 @@ package. Internal design targets are maintained under
 |---|---|---|
 | `Data` | Stores one input and one target as rank-one `Tensor<f32>` values | Dimensions are not validated by the constructor |
 | `DataMiniBatches` | Shuffles samples and builds rank-two input and target tensors | Requires a positive batch size and a nonempty data set. The current shuffle requires a nonzero effective epoch seed |
-| `Train` | Groups a model, epoch count, learning rate, dataset, and experiment identifier | It is configuration only; it does not execute training |
+| `Train` | Groups a model, epoch count, learning rate, dataset, and experiment identifier. The working-tree `Train<L: Loss>` also carries the objective | `Trainer::fit` executes training |
 | `ExperimentType` | Identifies OR, XOR, MNIST, or a custom configuration | Callers select the factory explicitly |
 | `experiments::or::train()` | Creates the built-in OR configuration | Each linear constructor starts the same fixed seed and initializes biases to zero |
 | `experiments::xor::train()` | Creates the built-in XOR configuration | The main binary does not select it currently |
@@ -51,8 +51,22 @@ records the differences in backward composition.
 | `backward` | Walks the flat module list in reverse using a rank-two batch and its `ForwardCache`. Uses the selected loss's output gradient and returns parameter gradients indexed by module | Match the model and cache to the same forward pass |
 | `BGD`, `Adam` | Apply gradient updates to float parameters | Callers must pair compatible model, optimizer state, and gradient structures |
 
-The executable owns the training loop. The finite-difference verification gate
-and the QAT training step are tracked in the [delivery plan](project/V0_DELIVERY_PLAN.md#22-how-do-we-restore-trustworthy-training-pending).
+At `4961a9e`, the executable owns the training loop. The finite-difference
+verification gate and the QAT training step are tracked in the
+[delivery plan](project/V0_DELIVERY_PLAN.md#22-how-do-we-restore-trustworthy-training-pending).
+The [proposed training API](project/V0_DELIVERY_PLAN.md#351-how-should-the-public-training-path-work-proposed)
+describes the public entry point under consideration.
+
+[PENDING] In the inspected working tree, `Trainer::fit` updates the borrowed
+model in float mode by default. QAT selects projected weights for forward
+and backward and updates the latent model. BGD and Adam implement
+`Optimizer::lr()` and `step()`. The loop uses a batch size of 64 and a shuffle
+seed of 42. The batch-size and silent setters remain disconnected from the
+loop, which prints metrics and returns `()`. The executable selects float
+training with Adam and evaluates the float model and its PTQ projection.
+`cargo check --all-targets` succeeds on the inspected source. Training results
+and parity evidence remain pending. [Trainer](../src/train.rs) ·
+[Optimizer trait](../src/optim.rs) · [Executable](../src/bin/main.rs)
 
 ---
 
