@@ -45,6 +45,8 @@ impl ForwardCache {
 
 impl Sequential {
     pub fn new(input_size: usize, prox_size: usize) -> Self {
+        assert_ne!(input_size, 0);
+        assert_ne!(prox_size, 0);
         let mut initial_modules = Vec::new();
         let linear = Linear::random(input_size, prox_size);
         initial_modules.push(AnyModule::Linear(linear));
@@ -56,6 +58,7 @@ impl Sequential {
     }
 
     pub fn linear(mut self, output_size: usize) -> Self {
+        assert_ne!(output_size, 0);
         let linear = Linear::random(self.input_size, output_size);
         self.modules.push(AnyModule::Linear(linear));
         self.input_size = output_size;

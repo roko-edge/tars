@@ -27,11 +27,11 @@ See [`EXPERIMENTS.md`](EXPERIMENTS.md) for topologies, datasets, and execution b
 | Resource | Implemented operations | Important constraint |
 |---|---|---|
 | `Module` | Forward evaluation from `&Tensor<f32>` to `Tensor<f32>` | The trait currently exposes `forward` |
-| `Sequential` | `new(input_size, first_output_size)` creates the first dense layer. The consuming builder appends linear layers, ReLU, and sigmoid | Supports an ordered chain and records a training trace through `forward_cache` |
+| `Sequential` | `new(input_size, first_output_size)` creates the first dense layer. `new`, `linear`, `relu` and `sigmoid` return `Sequential`. Each appended linear layer infers its input width | Records a training trace through `forward_cache`. Public mutation of `modules` bypasses construction checks. [Committed and working-tree dimension checks](engineering/specs/MODEL_TRAIT.md#specification-model-and-module-interface-hierarchy) |
 | `Sequential::quantize` | Returns a model with scaled ternary weights represented as `f32`, plus one scale per linear layer | Biases and activations are carried over. Scales follow linear layer order |
 | `Sequential::num_weights`, `Sequential::num_parameters` | Count weights and, for parameters, biases | Activation modules contribute no parameters |
 | `Sequential::sparsity`, `Linear::sparsity` | Report weight sparsity | Apply to projected weights with positive scales in linear layer order. The strict comparison reports zero sparsity for an all-zero layer with a zero scale |
-| `Linear` | Construction from explicit parameters, zeros, or seeded initialization | The explicit constructor checks weight and bias shapes. Forward accepts one sample or a rank-two batch |
+| `Linear` | Construction from explicit parameters, zeros, or seeded initialization | The explicit constructor checks weight and bias shapes. Public fields allow unchecked replacements. Forward accepts one sample or a rank-two batch |
 | `Activation` | ReLU and sigmoid evaluation | No additional activation variants are implemented |
 | `AnyModule` | Runtime dispatch over linear and activation modules | Typed accessors panic when used with the wrong variant |
 
