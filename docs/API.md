@@ -57,7 +57,7 @@ verification gate and the QAT training step are tracked in the
 The [proposed training API](project/V0_DELIVERY_PLAN.md#351-how-should-the-public-training-path-work-proposed)
 describes the public entry point under consideration.
 
-[PENDING] In the inspected working tree, `Trainer::fit` updates the borrowed
+[PENDING] At `7dd519d`, `Trainer::fit` updates the borrowed
 model in float mode by default. QAT selects projected weights for forward
 and backward and updates the latent model. BGD and Adam implement
 `Optimizer::lr()` and `step()`. The loop uses a batch size of 64 and a shuffle
@@ -67,6 +67,13 @@ training with Adam and evaluates the float model and its PTQ projection.
 `cargo check --all-targets` succeeds on the inspected source. Training results
 and parity evidence remain pending. [Trainer](../src/train.rs) ·
 [Optimizer trait](../src/optim.rs) · [Executable](../src/bin/main.rs)
+
+[PENDING] The updated trainer uses the configured `batch_size` with a
+default of 32 and logs the effective batch size and QAT mode at startup.
+The epoch loss uses the selected `Loss::forward` on the cached
+predictions before each update and weights the batch means by actual sample
+count. This aggregation covers SoftmaxCE and MSE with a fixed output width.
+`silent` remains disconnected. [Trainer](../src/train.rs)
 
 ---
 

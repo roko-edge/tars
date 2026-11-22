@@ -76,11 +76,13 @@ from the official training split, and evaluates on the remaining training
 samples. The reader exposes the official test split separately.
 [MNIST factory](../src/experiments/mnist.rs) · [Runner](../src/bin/main.rs)
 
-The working tree with `Trainer::fit` uses the same split and batch size on
+The `Trainer::fit` snapshot at `7dd519d` uses the same split and batch size on
 the assembled `784 → 64 → 10` topology. It trains in float mode with Adam and
 evaluates the final float model and its scaled float PTQ projection on the
 reserved suffix. This is an experimental host workflow. The release comparison
 uses the official test split and the independent integer inference path.
+The updated trainer uses the configured batch size. The executable uses the
+default of 32.
 [Working-tree API status](API.md#3-training-operations) ·
 [Release plan](project/V0_DELIVERY_PLAN.md#23-how-do-we-measure-and-improve-quantized-accuracy-pending)
 
@@ -164,7 +166,10 @@ samples per epoch. `Trainer::fit` uses the length of the fit slice for
 throughput. `Performance degradation` is the accuracy difference in
 percentage points. Record the objective, diagnostic, actual processed count
 and evaluation path independently until the runner reports them directly.
-[Runner](../src/bin/main.rs)
+The updated trainer uses the selected objective for both the loss label and
+the scalar. The epoch mean weights batches by their actual sample counts,
+including the short final batch.
+[Runner](../src/bin/main.rs) · [Trainer](../src/train.rs)
 
 ### How can a maintainer capture the current runner today?
 

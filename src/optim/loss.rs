@@ -5,7 +5,10 @@ pub trait Loss {
     fn backward(&self, predictions: &Tensor<f32>, targets: &Tensor<f32>) -> Tensor<f32>;
 }
 
+#[derive(Clone, Debug)]
 pub struct MSE;
+
+#[derive(Clone, Debug)]
 pub struct SoftmaxCE;
 
 impl Loss for MSE {
