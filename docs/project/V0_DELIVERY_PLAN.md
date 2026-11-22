@@ -5,15 +5,15 @@
 [roadmap](ROADMAP.md) owns work-package assignments. Engineering specifications
 own interfaces, arithmetic, and formats.
 
-First produce a reproducible release candidate that meets the MNIST and Rust–RTL
-targets. Then harden the same candidate through measured, independently
-reviewable changes. The release evidence must be reproducible on the exact
-revision the maintainer chooses to tag.
+First freeze a reproducible engineering baseline. Use it to build a candidate
+and measure the effect of hardening changes. The release evidence must be
+reproducible on the exact revision the maintainer chooses to tag.
 
 | Milestone | Completion criterion |
 | --- | --- |
+| **Internal baseline** | Pin the existing entry point, objective, optimizer, seeds, data roles and starting model. Verify small-model training and integer fixtures and record development results and remaining gates. Use the pinned run to judge later changes. |
 | **Release candidate** | Reproducible float and QAT training, held-out MNIST accuracy at the contractual thresholds, exact Rust–RTL outputs, and closure of the published v0.1.0 scope. |
-| **Hardened candidate** | Correctness evidence survives the changes. Measured improvements land in tensor kernels, training data flow, and deployment diagnostics. Each remaining proposal has an explicit disposition. |
+| **Hardened release** | The supported public entry points are verified against the baseline. Accepted performance and deployment changes have paired evidence. The final revision closes all release gates before the v0.1.0 tag. |
 
 ---
 
@@ -37,8 +37,9 @@ The audit covered the local branch at `2a136a6` and the public MNIST merge at
 
 ### 1.1 What did the training and tensor audit find on 2026-11-21?
 
-This inspection covers `e7b7f64` and the MNIST QAT experiment. The table
-records source observations. Release test and performance evidence is pending.
+This inspection covers `e7b7f64` and the MNIST QAT experiment at `4961a9e`.
+The table records source observations. Release test and performance evidence
+is pending.
 
 | Status | Area | Observed behavior |
 | --- | --- | --- |
@@ -47,8 +48,31 @@ records source observations. Release test and performance evidence is pending.
 | [CONFLICT] | Backward and loss | `Sequential::forward_cache` records a flat trace and the free backward pass walks it in reverse. The baseline runner uses synthetic MSE targets to compensate for the legacy delta overwrite. The QAT runner passes the selected loss's output gradient directly into backpropagation. The target module-local interface remains open. [`sequential.rs`](../../src/modules/sequential.rs), [`grad.rs`](../../src/optim/grad.rs), [`main.rs`](../../src/bin/main.rs) |
 | [CONFLICT] | SoftmaxCE forward and backward | The loss averages over the batch and its backward returns $(p-y)/B$ for normalized targets. Forward clamps probabilities before taking the logarithm, so the reported scalar and gradient disagree for sufficiently unfavorable logits. Use log-sum-exp and verify the pair on a deterministic float fixture. [`loss.rs`](../../src/optim/loss.rs), [training specification](../engineering/specs/TRAINING.md#12-loss-function-contract) |
 | [CONFLICT] | MNIST baseline | Both inspected paths use Adam and evaluate on training data. The baseline factory uses a single affine layer and the QAT factory uses `784 → 128 → 64 → 10`. The release calls for BGD, held-out evaluation, and the assembled `784 → 64 → 10` topology. The QAT runner reports MSE on raw logits and averages the batch means. [`main.rs`](../../src/bin/main.rs), [`mnist.rs`](../../src/experiments/mnist.rs), [release contract](V0_CONTRACT.md) |
+| [PENDING] | Independent MNIST evaluation | At `4961a9e`, the factory builds its dataset from `train_data` and `train_labels`. The runner passes that same dataset to batching and to both final accuracy calls. The printed accuracies are training diagnostics. The release requires the [held-out evaluation protocol](#231-how-do-we-keep-the-final-mnist-evaluation-independent-proposed). [`mnist.rs`](../../src/experiments/mnist.rs), [`main.rs`](../../src/bin/main.rs) |
 | [PENDING] | QAT and exact parity | QAT runs forward and backward with scaled ternary weights represented in `f32` and applies the gradient to latent weights. The independent fixed-point reference and release validation remain pending. `export_inference` serializes float predictions, and Tier 2 permits a one-LSB difference. [`main.rs`](../../src/bin/main.rs), [`export.rs`](../../src/export.rs), [`tb_parity.sv`](../../npu/tests/tb_parity.sv) |
 | [PENDING] | Dense tensor fast paths | The committed core has logical dense slices and an `FnMut` mapping path with strided fallback. `is_contiguous` allocates stride metadata, and consumers such as `sum` use a logical iterator that panics for rank zero. [`tensor_core.rs`](../../src/tensor/tensor_core.rs) |
+
+### 1.2 What changed in the inspected MNIST working tree on 2026-11-22?
+
+In the earlier local snapshot over `4961a9e`, the factory builds `784 → 64 → 10`
+and the runner uses float training with Adam. It passes the first 50,000
+samples from the MNIST training files to the loader and evaluates the float
+checkpoint and its PTQ projection on the remaining samples from those files.
+These are source observations. The official test split and release run are
+still [PENDING].
+
+The subsequent trainer integration and revised MNIST configuration are
+recorded in the [public API status](../API.md#3-training-operations) and
+[experiment configurations](../EXPERIMENTS.md#built-in-experiments).
+
+| Status | Finding |
+| --- | --- |
+| [CONFLICT] | The runner logs an unweighted mean of batch MSE values on logits while optimizing SoftmaxCE. Its throughput numerator includes the full factory dataset, including the suffix reserved for evaluation. With 50,000 fit samples and batch size 64, a complete epoch has 782 updates and a final batch of 16. |
+| [PENDING] | Initialization advances the generator across draws and neuron rows within a layer. Each layer restarts from the same fixed seed. The pending change is a configurable model-wide initialization stream. The ternary distribution test still calls the float sampler. |
+| [PENDING] | The compiled QAT branch at `4961a9e` and the active float branch in the working tree are represented by successive source snapshots. A single runnable entry point that selects either mode is part of the [proposed API refinement](#351-how-should-the-public-training-path-work-proposed). |
+
+[`main.rs`](../../src/bin/main.rs) · [`mnist.rs`](../../src/experiments/mnist.rs) ·
+[`linear.rs`](../../src/modules/linear.rs) · [`math_tests.rs`](../../tests/math_tests.rs)
 
 ---
 
@@ -73,11 +97,11 @@ its threshold to the measured accuracy. [Release contract](V0_CONTRACT.md#1-prim
 
 | Order | Work | Acceptance evidence |
 | --- | --- | --- |
-| 1 | **Restore RNG state.** Own a seeded generator for the initialization stream and advance it across draws and layers. Give initialization and shuffling explicit, recorded seeds. Fix the ternary distribution test to exercise the ternary sampler. | The same algorithm and seed reproduce the sequence, successive draws vary, and the initializer produces distinct neuron rows on a fixed fixture. The Rust gate passes without retries. Record the locked dependencies and execution environment for byte-level reproducibility. |
+| 1 | **Complete RNG ownership.** Extend the existing per-layer stream to the model so initialization advances across layers. Give initialization and shuffling explicit, recorded seeds. Fix the ternary distribution test to exercise the ternary sampler. | The same algorithm and seed reproduce the sequence, successive draws vary, and the initializer produces distinct neuron rows and distinct layers of equal shape on a fixed fixture. The Rust gate passes without retries. Record the locked dependencies and execution environment for byte-level reproducibility. |
 | 2 | **Pin the small-model baseline.** Preserve sigmoid/MSE behavior on OR and XOR. Keep their training commands independent of MNIST downloads and export side effects. | Deterministic fixture for predictions, loss, and a parameter update. Repeated runs reproduce the expected result under the recorded toolchain. |
 | 3 | **Finish the loss boundary.** Register MSE and SoftmaxCE and let the loss produce the initial delta consumed by the analytical backward pass. Define identical shapes, consistent batch reductions, and diagnostics for invalid inputs. | MSE divides by the number of elements. For one-hot targets, batch-mean SoftmaxCE accepts raw logits, uses a stable max-shift/log-sum-exp computation, and returns `(p - y) / B`. Tests cover large logits, the final short batch, mismatched inputs, and finite differences. |
 | 4 | **Verify the model gradient and optimizer.** Use a deterministic multilayer float fixture with ReLU inputs away from zero. Check both weight and bias gradients. Validate the model–gradient pairing before applying BGD updates. | The roadmap sets a finite-difference tolerance of $\epsilon \le 10^{-4}$. Record the perturbation and error metric alongside the result. An invalid gradient is rejected before changing parameters. |
-| 5 | **Finish the MNIST run path.** Use the existing reader, retain separate train and held-out splits, validate image and label counts and ranges before pairing, and keep exported parity samples explicit. | The runner records dataset identity, topology, seeds, batch size, learning rate, optimizer, epochs, checkpoint identity, and the accuracy denominator. It can run the same evaluation from a saved checkpoint without retraining. |
+| 5 | **Finish the MNIST run path.** Use the existing reader, enforce the split roles in Section 2.3.1, and validate image and label counts, dimensions and ranges before pairing. Record the training mode and label the actual loss, split and inference path in the metrics. | The runner records dataset identity, topology, seeds, batch size, learning rate, optimizer, epochs, checkpoint identity, and integer accuracy counts. It can evaluate a saved checkpoint without retraining. Keep exported parity samples identifiable. |
 
 For the first valid baseline, keep BGD and make initialization and shuffle fixes
 independent of optimizer or kernel changes. A later initializer or optimizer
@@ -106,11 +130,31 @@ memory or latency requirement justify them. The independent integer reference
 can consume canonical codes and Q8.24 words directly. Evaluate any removal of the
 experimental tensor API as a compatibility decision for its callers.
 
+#### 2.3.1 How do we keep the final MNIST evaluation independent? [PROPOSED]
+
+Split the official MNIST training data into disjoint fit and development
+partitions using a deterministic rule. Reserve the official test split for
+the final release evaluation. Record dataset hashes and partition membership
+or its exact derivation.
+
+| Partition | Allowed use |
+| --- | --- |
+| Fit | Parameter updates and fitting any data-dependent preprocessing or quantizer calibration. |
+| Development | Select the architecture, quantizer settings and checkpoint or stopping rule. |
+| Final held-out test | Evaluate the frozen float checkpoint and exported PTQ and QAT artifacts on identical sample IDs and labels. Use the serialized-domain integer evaluator for PTQ and QAT. |
+
+Verify split membership and exactly one prediction per held-out sample and
+path. Paired comparisons require the same sample IDs in every evaluated path.
+Freeze the selection protocol and checkpoints before final evaluation.
+Record training-set accuracy separately as a diagnostic. Keep the Tier 2
+parity fixture separately identified because it verifies exact words on a
+declared subset. [Run records and metrics](../EXPERIMENTS.md#how-should-benchmark-runs-be-recorded-proposed)
+
 ### 2.4 How do export and RTL establish exact parity? [PENDING]
 
 | Order | Work | Acceptance evidence |
 | --- | --- | --- |
-| 1 | **Validate an assembled model before emission.** Check supported activations, connected layer dimensions, weight order, one scale per layer, exact bias sizes, and input shape. Export to an explicit run directory. | Invalid input fails before publishing a set of artifacts. XOR exports and MNIST parity fixtures have independent destinations. The existing wire format changes only through Engineering Invariant 4. |
+| 1 | **Validate an assembled model before emission.** Check supported activations, connected layer dimensions, weight order, one scale per layer, exact bias sizes, and input shape. Export the layer manifest and data to an explicit run directory. | Invalid input fails before publishing a set of artifacts. The manifest identifies the assembled topology and activation choices. XOR exports and MNIST parity fixtures have independent destinations. The existing wire format changes only through Engineering Invariant 4. |
 | 2 | **Implement the independent integer reference.** Consume signed Q8.24 inputs, biases, and scales plus the canonical ternary codes. Apply signed accumulation, full-width multiplication, floor shift, pre-bias saturation, bias addition, post-bias saturation, and activation in the specified order. | Hand-calculated fixtures cover negative fractional rescaling, the two distinct saturations, the minimum signed activation, both encodings of zero, and intermediate quantization across two layers. The same reference evaluates held-out accuracy and generates expected parity words. |
 | 3 | **Make the testbench strict.** Compare the complete 32-bit words. Check missing, malformed, short, and extra inputs in the fixture reader or preflight. Drive stimulus away from the sampling edge and require one completion per accepted request. | A deliberately corrupted expected word fails. Missing or inconsistent data fails before comparison. Logs identify the sample and output index on mismatch and report total comparisons and mismatches. |
 | 4 | **Run exact parity at two scales.** Use an inexpensive deterministic integration fixture in CI as proposed below, then run the trained-model MNIST fixture for release. | A clean checkout can reproduce the small fixture. The release bundle pins selected sample IDs, model words, expected output words, and simulator version. Lint, Tier 1, and Tier 2 results are attached to the tested revision. |
@@ -157,7 +201,7 @@ performance claims.
 | Sequence | Design | Acceptance evidence |
 | --- | --- | --- |
 | 1 | Fix logical traversal before adding fast paths. A rank-zero tensor has one element. An empty extent has zero. Compare the stored strides with a running expected stride, from the last axis to the first. Retain the current offset check. | Tests cover scalars, empty extents, rectangular transposes, round-trip materialization, and storage larger than `numel()`. A borrowed dense slice contains exactly the logical extent. The contiguity query makes no heap allocation. |
-| 2 | Implement `map` with a borrowed dense slice and a stride-aware fallback. Visit elements in logical row-major order and construct the canonical output directly. Accept a stateful callback. | Dense and strided results agree with hand-calculated examples. A stateful closure observes the same order. The fallback has no temporary packed input and the output avoids an initial zero fill. |
+| 2 | Verify and benchmark the existing `map` paths over a borrowed dense slice and a stride-aware fallback. Preserve logical row-major order, direct construction of the canonical output, and support for stateful callbacks. | Dense and strided results agree with hand-calculated examples. A stateful closure observes the same order. The fallback has no temporary packed input and the output avoids an initial zero fill. |
 | 3 | Introduce crate-internal `zip_map` for equal-shape element-wise kernels. Zip borrowed slices when both operands are dense and traverse the logical coordinates otherwise. Reuse it in the existing arithmetic API. Express row-bias addition and batch reduction as named operations. | Shape mismatch fails before the callback, including different shapes with equal element counts. Test both-contiguous, mixed-layout, and both-transposed pairs. Shape, traversal order, and results agree with the scalar reference. |
 | 4 | Reuse existing mutable methods and add an internal `zip_map_mut` where backward or BGD can actually reuse a destination. Acquire mutable dense storage once. Preserve layout and copy-on-write behavior. | Tests confirm unchanged sibling views and retained destination strides. Measurements distinguish unique and shared storage and account for the full update, including any temporary allocation. |
 | 5 | Preserve metadata-only `transpose` for tensor data. Use `make_contiguous` at a consumer that needs canonical storage or after measurement shows that reuse pays for packing. Give packed T3 its own storage access capability. | The dense fast path is available only for storage that can expose a real element slice. The strided path works without forced input copies. Packed and wire representations have their own fixtures. |
@@ -253,11 +297,49 @@ recorded in Section 4.
 
 | Boundary | Design and acceptance |
 | --- | --- |
-| Composition | Keep a consuming builder for the sequential chain and a pure `forward`. Fold a flat sequence in forward order and walk the saved trace in reverse for backward. Apply each layer's calculus in that layer. Introduce actual recursive descent when an admitted composite owns other composites. The traced and plain forwards agree for the same input and parameters. |
+| Composition | Keep fluent construction and a pure `forward`. Fold a flat sequence in forward order and walk the saved trace in reverse for backward. Apply each layer's calculus in that layer. Introduce actual recursive descent when an admitted composite owns other composites. The traced and plain forwards agree for the same input and parameters. |
 | Training | The loss owns its reduction and output gradient. The composite owns trace order. The optimizer owns parameter updates and any moments tied to the model's parameter order. Validate shapes and topology at construction or step entry so the numeric loop can assume them. Exercise the public calls from a deterministic small model through one complete update, including invalid shape and state cases. |
 | Tensor engine | Keep `map` and internal `zip_map` available for CPU implementation work. Expose named tensor operations for model code so storage, indexing and CPU kernels stay behind the operation boundary. Describe logical order, accepted ranks and layouts, shape errors and allocation behavior in the API documentation. |
 | Public exports | Inventory `lib.rs` re-exports against the documented entry points. Make deliberate exports for the supported surface and use the existing module paths during a compatibility transition. Resolve duplicate entry points, empty diagnostics and stubs in the area being changed. Public API examples should compile using the documented paths. [`lib.rs`](../../src/lib.rs), [API reference](../API.md) |
 | Scope | Favor a complete, tested path for `Tensor<f32>`, sequential affine layers and activations, the supported losses and optimizer, and ternary export with exact CPU evaluation. Add a new public abstraction when a supported operation or a documented consumer needs it. Keep generalized graphs and devices on their existing milestones. [Release boundaries](V0_CONTRACT.md#61-version-boundaries), [execution targets](../engineering/FUTURE_TARGETS.md#3-invariance-rules) |
+
+#### 3.5.1 How should the public training path work? [PROPOSED]
+
+Keep the fluent sequential chain and expose one reusable training loop. Prove
+float, PTQ, and QAT with the existing execution paths first. Use those fixtures
+to verify the public API during hardening, before tagging v0.1.0. The proposed
+signatures below are subject to maintainer review.
+
+| Boundary | Proposed behavior and trade-off |
+| --- | --- |
+| Model construction [DECIDED] | Preserve `Sequential::new(784, 64).relu().linear(10)` as a complete construction chain. The constructor creates the first affine layer and every call returns `Sequential`. Direct calls check positive widths and allocation sizes before creating a layer. Configuration or import entry points return errors for invalid external dimensions. The initialization seed API remains [PENDING]. [Construction contract](../engineering/specs/MODEL_TRAIT.md#22-sequential-as-a-composite-module) |
+| Model invariants | Keep topology and parameter shapes private. Public mutation preserves those shapes or validates replacements. A caller can currently clear `Sequential::modules` or replace a `Linear` weight tensor directly. |
+| Training configuration | `Trainer::new(model, loss, optimizer)` binds the objective and update rule explicitly. `.batch_size(...)`, `.shuffle_seed(...)`, and `.mode(TrainingMode::Qat)` set run options. Use float mode by default and document any batch and seed defaults. Pass the epoch count to `fit` so the run budget is visible. The release preset explicitly selects `BGD`, which applies one update per supplied batch. Keep Adam available for comparison after its state and step are verified. |
+| Ownership and errors [PROPOSED] | `fit(self, fit_data, epochs)` borrows samples and returns a `Result` containing the trained latent model and a report on success. The run consumes the trainer on an error as well. If the release needs repeated calls that continue the same session, consider `fit(&mut self, ...)` with explicit ownership of the model, optimizer moments, and shuffle position. Bind optimizer state to the model and preflight layout, configuration, and target shape before updating weights. A numerical failure during a run identifies the epoch and batch. |
+| Manual training | Use the same forward trace, analytical backward pass, and optimizer step in the trainer and in the manual path. A manual caller can inspect the gradients before stepping. Reuse the optimizer interface specified in the [training contract](../engineering/specs/TRAINING.md#13-optimizer-contract). |
+| Quantization-aware training | Select `TrainingMode::Qat` explicitly. The release QAT run starts from the frozen float checkpoint. Use effective weights from the current batch for forward and input gradients and apply the STE update to latent weights. Record starting checkpoint, run mode, and optimizer-state policy. A fresh trainer starts with fresh optimizer state. Keep float training, PTQ evaluation of the float baseline, and QAT as separately identified runs or evaluation paths. |
+| Reporting and evaluation | The report includes the actual loss, reduction, processed sample and update counts, epoch history and defined timing windows. Aggregate loss using the objective's denominator. Provide classification evaluation with `correct`, `total`, a deterministic tie rule and explicit split and inference path. The generic trainer can also run MSE on OR and XOR. The release runner calls the final evaluation on frozen models under the protocol in Section 2.3.1. Keep terminal rendering at the caller. |
+| Model summary | Use `Display` for the topology, output widths, weight and bias counts, and logical float payload. Derive ternary sparsity from emitted zero trits, with per-layer and count-weighted totals. For `784 → 64 → 10`, there are 50,816 weights and 74 biases. Logical float parameters occupy 203,560 bytes. Ideal packed weight codes occupy 12,704 bytes, plus 304 bytes for the two scales and 74 biases in Q8.24. Report text `.mem` size and runtime footprint separately. |
+| Deployment | `compile_npu()` produces one checked artifact for the assembled target. Confirm layer count, dimensions, activation mapping, canonical trits and Q8.24 words. Use the same artifact for integer evaluation and file emission. Offer `export_npu(dir)` as a convenience that calls the same compiler and writer. Publish the artifact set after all writes succeed. Return errors for unsupported models or I/O failures. [Export and parity work](#24-how-do-export-and-rtl-establish-exact-parity-pending) |
+
+Keras illustrates inferred intermediate widths, explicit training setup and a
+structured `fit` history. Candle demonstrates binding optimizer configuration
+to parameters before stepping.
+[Keras Sequential](https://keras.io/api/models/sequential/) ·
+[Keras training API](https://keras.io/api/models/model_training_apis/) ·
+[Candle optimizer](https://docs.rs/candle-nn/latest/candle_nn/optim/trait.Optimizer.html)
+
+#### 3.5.2 Which cases should the API fixtures cover? [PROPOSED]
+
+| Area | Cases to verify |
+| --- | --- |
+| Construction and import | The model can run a forward pass immediately after creating its first affine layer. Appending a linear layer infers its input width. Verify that direct calls diagnose zero widths and size overflow before allocation and that import returns errors for invalid dimensions and parameter shapes. Forward results match between traced and plain execution. |
+| Data and training | Reject empty fit data, zero epochs or batch size, an invalid learning rate, mismatched counts or widths, invalid class targets, and non-finite values. A batch size above the sample count produces one update. A short final batch contributes its actual weight to the epoch metric. Preserve bias updates, repeated seeds, and OR/XOR MSE behavior. |
+| Loss and optimizer | Verify extreme and translated logits and both analytical gradients. Keep the existing dense one-hot MNIST targets for the first path. A future class-index loss can eliminate those target buffers if a benchmark justifies the API change. A gradient or optimizer layout mismatch fails before any parameter mutation. |
+| Manual and trainer paths | With matching initial parameters and optimizer state, one float batch produces the same updated parameters through the trainer and the manual path. Verify the QAT step separately against its effective-weight and latent-update fixture. |
+| Evaluation | Validate the data and handle ties consistently across float and fixed-point paths. A saturated or zero-scale model can produce ties. Empty data must yield an explicit error. Use identical reserved IDs for the release comparison. |
+| Export | Reject a host-valid but unsupported NPU topology, activation, or non-finite parameter. Verify the all-zero layer and the agreed Q8.24 encoding edge cases. Exercise an unwritable destination and make incomplete artifact sets unusable by the consumer. Compare the complete emitted words with the configured wrapper. |
+| Performance | Measure allocations after warm-up over complete float and QAT steps, with equal starting parameters and batch order. First remove discarded gradients and gather copies per Section 3.2. Extend reuse through activations, deltas, loss scratch, and effective weights where the measurements justify it. Include the short batch and check copy-on-write detachment. Count a zero-allocation step only after observing it across that entire path. |
 
 ---
 
@@ -266,11 +348,13 @@ recorded in Section 4.
 | Status | Issue | Canonical record |
 | --- | --- | --- |
 | [CONFLICT] | **Quantizer ties and tiny scales.** LOG-008 specifies ties away from zero and the spec separately gives strict comparisons. The implementation uses strict comparisons and a small-scale cutoff. Confirm the exact behavior, including $W_0 = 0$ and positive scales near the cutoff, before freezing release fixtures. | [Quantization specification](../engineering/specs/QUANT.md) and [LOG-008](research/LOG-008-v0_governance_and_release_decisions.md) |
-| [CONFLICT] | **External Q8.24 encoding versus internal rescaling.** The arithmetic document records both a target ties-to-even encoder and current normative truncate-toward-zero serialization. State the selected release encoder separately from the mandatory arithmetic floor inside the epilogue. The contract summary also calls the accumulator saturating, while the detailed arithmetic contract and PE keep a wide accumulator and saturate in the epilogue. | [Q8.24 arithmetic specification](../engineering/specs/ARITHMETIC_Q8_24.md) |
+| [CONFLICT] | **External Q8.24 encoding versus internal rescaling.** The arithmetic document records both a target ties-to-even encoder and current normative truncate-toward-zero serialization. State the selected release encoder separately from the mandatory arithmetic floor inside the epilogue. The release contract specifies a signed 64-bit accumulator and two saturations in the epilogue. | [Q8.24 arithmetic specification](../engineering/specs/ARITHMETIC_Q8_24.md) · [Release contract §2.3](V0_CONTRACT.md#23-respective-npu-hardware-npu) |
 | [DECIDED] | **Program and wrapper scope.** v0.1.0 uses the manually assembled two-layer wrapper. `program.mem` and runtime shape controls belong to the v0.1.1 programmable top. | [Release contract](V0_CONTRACT.md#61-version-boundaries) · [LOG-008](research/LOG-008-v0_governance_and_release_decisions.md) |
 | [CONFLICT] | **Optimizer and statistics.** The older roadmap mentions Adam and a bootstrap interval. The release contract makes BGD the optimizer of record, specifies a 95% binomial interval, and requires the paired comparison for published accuracy claims. | [Release contract](V0_CONTRACT.md) |
 | [CONFLICT] | **Tensor surface and packed views.** The release contract lists generalized views, broadcasting, axis reductions and mutation capabilities. The implementation is partial and the later decision decouples typed storage from the release path. The tensor spec also names byte-backed T3 storage and byte-aligned views, while the code stores words and uses generic transpose. Record which surface must ship and resolve packing representation and view rules in their specification before extending the API. | [Release contract](V0_CONTRACT.md), [tensor specification](../engineering/specs/TENSOR.md), and [LOG-008](research/LOG-008-v0_governance_and_release_decisions.md) |
 | [CONFLICT] | **Backward composition and loss reduction.** The release contract calls for module-local backward and the model spec describes recursive composition. The training spec declares a composite method consuming an explicit output gradient. The implementation uses a free reverse pass over `Vec<AnyModule>` and takes a loss and targets. The SoftmaxCE formula in the training spec describes one example. State the batch reduction explicitly when reconciling the interface. Preserve the forward trace and a single source of the initial delta. | [Release contract §2.4](V0_CONTRACT.md#24-tensorized-analytical-backpropagation), [model specification](../engineering/specs/MODEL_TRAIT.md), [training specification](../engineering/specs/TRAINING.md) |
+| [PENDING] | **Public capability scope.** Confirm the release disposition of He initialization and the observer interface sketched in Section 2. Distinguish the assembled sequential layer manifest required for v0.1.0 from the DAG manifest in the future-proofing section. Record the supported API in the public reference. | [Release contract §§2, 5 and 6](V0_CONTRACT.md), [public API reference](../API.md) |
+| [PENDING] | **Public training entry point.** Fluent `Sequential` construction returns `Self`. Select the initialization seed and shape-preserving parameter access APIs. Confirm the explicit optimizer, one-shot `fit` ownership and compiler entry point before changing public training and deployment signatures. | [Model specification](../engineering/specs/MODEL_TRAIT.md#22-sequential-as-a-composite-module) · [Training API proposal](#351-how-should-the-public-training-path-work-proposed) |
 | [PENDING] | **Visualization.** The active release contract includes subsampled layer layout, activation intensity, and signed weight styling. Deliver that surface using a pinned model and trace, or record a maintainer-approved scope amendment. The current binary stub is insufficient. | [Release contract §3](V0_CONTRACT.md#3-visualization-and-observability-specifications) |
 | [PROPOSED] | **Artifact fixtures and naming.** Make run metadata and fixture provenance explicit. Document how the expected-output role is distinguished from dataset labels and legacy smoke inputs. Any change to `.mem` names or semantics must move the exporter, RTL consumer, and format docs together. | [Memory format](../engineering/MEM_FORMAT.md) |
 | [PROPOSED] | **Phase boundary.** Keep generalized graph execution, GPU training, int8, and zero-skipping on their documented milestones. Treat Adam, more aggressive kernel tuning, and deployment tooling as candidates justified by evidence and concrete consumers. | [Release boundaries](V0_CONTRACT.md#61-version-boundaries) and [future targets](../engineering/FUTURE_TARGETS.md) |
@@ -313,9 +397,21 @@ together.
 ### What evidence travels with the candidate?
 
 - [ ] The tested revision and locked software and RTL toolchains are identified.
-- [ ] OR/XOR regressions, float finite differences, and the Rust gate are green.
-- [ ] The selected float, PTQ and QAT configurations, model identities and held-out results are recorded.
-- [ ] Exact Tier 2 comparisons use a matching artifact set. RTL lint, Tier 1 and Tier 2 results are recorded.
-- [ ] Visualization, tensor scope, and the other open release clauses have an implemented or ratified disposition.
+- [ ] OR/XOR regressions, float finite differences, the QAT/STE step fixture,
+  and the Rust gate are green.
+- [ ] Fit, development and final evaluation data are identified. The frozen
+  float checkpoint and exported PTQ and QAT artifacts have per-sample
+  predictions and counts on the same reserved IDs. Float accuracy is at
+  least 95% and bit-exact ternary accuracy is above 90%. Record the 95%
+  binomial interval for the ternary result and record the paired comparison
+  for publication.
+- [ ] The layer manifest, parameters, inputs and integer expectations are
+  traceable to the candidate. Exact Tier 2 comparisons report zero
+  mismatched words. RTL lint, Tier 1 and Tier 2 results are recorded.
+- [ ] Visualization, the tensor and public API surface, and the other
+  [open release clauses](#4-which-decisions-need-an-explicit-disposition)
+  have an implemented or ratified disposition. Numbered research logs
+  point to the reproducible evidence required by the
+  [release contract](V0_CONTRACT.md#4-academic-research-logging-protocol-paper-prerequisites).
 - [ ] Each selected hardening change has its before/after evidence and repeatable command. Unselected work has an explicit phase or disposition.
 - [ ] Public docs describe working entry points and distinguish implemented capabilities, measurements, and future targets.
