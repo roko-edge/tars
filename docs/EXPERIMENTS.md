@@ -53,7 +53,8 @@ factory supplies the identifier in its configuration.
 | `tars::experiments::mnist::train()` at `e7b7f64` | `784 → 10`, one affine layer | 10 | 0.003 | `ExperimentType::Mnist` |
 | `tars::experiments::mnist::train()` at `4961a9e` | `784 → 128 → 64 → 10`, ReLU after the hidden layers | 5 | 0.001 | `ExperimentType::Mnist` |
 | Earlier MNIST working-tree snapshot on 2026-11-22 | `784 → 64 → 10`, ReLU after the hidden layer | 100 | 0.001 | `ExperimentType::Mnist` |
-| MNIST working tree with `Trainer::fit` | `784 → 64 → 10`, ReLU after the hidden layer | 50 | 0.001 | `ExperimentType::Mnist` |
+| MNIST with `Trainer::fit` at `7dd519d` | `784 → 64 → 10`, ReLU after the hidden layer | 50 | 0.001 | `ExperimentType::Mnist` |
+| Current MNIST experiment | `784 → 64 → 10`, ReLU after the hidden layer | 5 | 0.005 | `ExperimentType::Mnist` |
 
 The OR and XOR datasets contain the complete two-input truth table.
 
