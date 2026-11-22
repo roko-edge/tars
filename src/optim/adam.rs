@@ -1,7 +1,7 @@
+use crate::Optimizer;
 use crate::modules::{AnyModule, Sequential};
 use crate::optim::grad::Grad;
 use crate::tensor_core::Tensor;
-
 pub struct Adam {
     pub lr: f32,
     pub beta1: f32,
@@ -116,5 +116,13 @@ impl Adam {
                     .set(&[o], old_b - self.lr * m_hat / (v_hat.sqrt() + self.eps));
             }
         }
+    }
+}
+impl Optimizer for Adam {
+    fn lr(&self) -> f32 {
+        self.lr
+    }
+    fn step(&mut self, model: &mut Sequential, grad: &Grad) {
+        Adam::step(self, model, grad);
     }
 }
