@@ -1,8 +1,8 @@
 use crate::AnyModule;
+use crate::Optimizer;
 use crate::grad::Grad;
 use crate::sequential::Sequential;
 pub use crate::tensor_core::Tensor;
-
 #[derive(Clone, Copy, Debug)]
 pub struct BGD {
     lr: f32,
@@ -37,5 +37,13 @@ impl BGD {
                 _ => {}
             }
         }
+    }
+}
+impl Optimizer for BGD {
+    fn lr(&self) -> f32 {
+        self.lr
+    }
+    fn step(&mut self, model: &mut Sequential, grad: &Grad) {
+        BGD::step(self, model, grad);
     }
 }

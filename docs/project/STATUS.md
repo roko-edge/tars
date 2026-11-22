@@ -3,9 +3,11 @@
 **Document type:** Project status record. User instructions are maintained in
 [`docs/`](../README.md).
 
-This source snapshot covers the MNIST QAT experiment inspected on 2026-11-21.
-The command table records available entry points. Release evidence is tied
-to its tested revision in the [delivery plan](V0_DELIVERY_PLAN.md).
+The committed source snapshot is `4961a9e`, inspected on 2026-11-21. The
+[working-tree inspection](V0_DELIVERY_PLAN.md#12-what-changed-in-the-inspected-mnist-working-tree-on-2026-11-22)
+records the local float run path separately. The command table records
+available entry points. Release evidence is tied to its tested revision in
+the [delivery plan](V0_DELIVERY_PLAN.md).
 
 ---
 

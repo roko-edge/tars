@@ -1,7 +1,7 @@
 use crate::{experiment_type::ExperimentType, *};
 use mnist_reader::MnistReader;
 
-pub fn train() -> Train {
+pub fn train() -> Train<SoftmaxCE> {
     let mut mnist = MnistReader::new("mnist-data");
     mnist.load().expect("Falha ao carregar os dados do MNIST");
 
@@ -17,18 +17,15 @@ pub fn train() -> Train {
         .collect();
 
     Train {
-        model: Sequential::new(784, 128)
-            .relu()
-            .linear(64)
-            .relu()
-            .linear(10),
+        model: Sequential::new(784, 64).relu().linear(10),
 
         epochs: 5,
 
-        lr: 0.001,
+        lr: 0.005,
 
         dataset,
 
         experiment_type: ExperimentType::Mnist,
+        loss: SoftmaxCE,
     }
 }

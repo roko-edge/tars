@@ -1,6 +1,6 @@
 use crate::{experiment_type::ExperimentType, *};
 
-pub fn train() -> Train {
+pub fn train() -> Train<MSE> {
     Train {
         model: Sequential::new(2, 1).sigmoid(),
 
@@ -15,5 +15,6 @@ pub fn train() -> Train {
         ],
 
         experiment_type: ExperimentType::Or,
+        loss: MSE,
     }
 }

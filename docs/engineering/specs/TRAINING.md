@@ -3,6 +3,8 @@
 **Document type:** Engineering specification (normative contract).
 **Status:** Normative target contract. The [public API](../../API.md#3-training-operations)
 describes the implemented training interface and known deviations.
+The [delivery plan](../../project/V0_DELIVERY_PLAN.md#351-how-should-the-public-training-path-work-proposed)
+tracks the proposed high-level trainer, which reuses these training operations.
 **Revision date:** 2026-11-02 (maintainer decision).
 **Owns:** Frozen software training interfaces across model evaluation, loss computation, gradient tracking, optimizer step execution, batch loading, and the wire export boundary.
 **Does not cover:** Mathematical quantization operators ([`QUANT.md`](QUANT.md)), tensor memory strides ([`TENSOR.md`](TENSOR.md)), or hardware-side FSM execution ([`ARITHMETIC_Q8_24.md`](ARITHMETIC_Q8_24.md)).
@@ -67,11 +69,14 @@ Optimizers update composite model parameters in-place given computed gradients:
 
 ```rust
 pub trait Optimizer {
+    fn lr(&self) -> f32;
     fn step(&mut self, model: &mut Sequential, grad: &Grad);
 }
 ```
 
-Initial optimizer: Batch Gradient Descent (`BGD`). The signature supports drop-in replacement by `Adam` without changes to model training loops.
+`lr()` reports the configured learning rate. Batch Gradient Descent (`BGD`)
+is the release reference. Adam implements the same interface and keeps its
+moment state in the optimizer instance.
 
 ### 1.4 Seeded Batch Loader
 
