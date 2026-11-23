@@ -3,17 +3,16 @@
 **Document type:** Project status record. User instructions are maintained in
 [`docs/`](../README.md).
 
-The committed source snapshot is `4961a9e`, inspected on 2026-11-21. The
-[working-tree inspection](V0_DELIVERY_PLAN.md#12-what-changed-in-the-inspected-mnist-working-tree-on-2026-11-22)
-records the local float run path separately. The command table records
-available entry points. Release evidence is tied to its tested revision in
-the [delivery plan](V0_DELIVERY_PLAN.md).
+The training and runner entries reflect source inspection of public commit
+`495cc9c` on 2026-11-23. The command table describes available entry points.
+The delivery plan ties release evidence to its tested revision.
+[Delivery plan](V0_DELIVERY_PLAN.md) · [Status update workflow](DOCUMENTATION_AUDIT.md#what-should-reach-the-public-main-branch)
 
 ---
 
 ## State in Ten Lines
 
-1. The Rust training path uses `Tensor<f32>` and `DataMiniBatches` seeded shuffling. Packed T3 storage is available independently. The [delivery plan](V0_DELIVERY_PLAN.md#11-what-did-the-training-and-tensor-audit-find-on-2026-11-21) records the current loss, MNIST, and quantization gaps.
+1. `Trainer::fit` runs float training and exposes a QAT mode over `Tensor<f32>`. [Training API](../API.md#3-training-operations)
 2. The NPU release engine uses dense 2-bit ternary weights, conditional add/subtract, a 64-bit accumulator, and a per-neuron epilogue with one scale $W_0$ per layer.
 3. The ternary encoding is $v = b_0 - b_1$ ($00=0, 01=+1, 10=-1, 11=0$). The canonical encoder emits `00` for zero. [Encoding contract](../engineering/specs/QUANT.md#2-canonical-hardware-code-serialization)
 4. RTL is organised in three layers: primitives (`t3_dec`, `pe`, `epilogue`), the single-layer engine (`layer_engine`), and a per-network wrapper (`npu.sv`, 784→64→10 by default).
@@ -22,7 +21,7 @@ the [delivery plan](V0_DELIVERY_PLAN.md).
 7. Dense ternary weight export (`wt.mem`) and per-layer scales (`w0.mem`) are implemented in `src/export.rs` (PR #30); checked-in legacy `npu/data/` files remain retained for `tb.sv`.
 8. The manual wrapper is the v0.1.0 assembly. The programmable top is scheduled for v0.1.1. [Scope decision](research/LOG-008-v0_governance_and_release_decisions.md#2-maintainer-decisions-november-2026)
 9. Release target: MNIST $784 \to 64 \to 10$ bit-exact against the Rust model, ternary accuracy $> 90\%$; tag v0.1.0.
-10. The MNIST runner executes QAT with scaled ternary weights represented in `f32` and updates latent float parameters. Its accuracy reports use the training split.
+10. The MNIST runner fits a float model and reports float and PTQ accuracy over a reserved subset of the official training split. [Experiment behavior](../EXPERIMENTS.md#selection-and-execution)
 
 ---
 
@@ -38,9 +37,9 @@ the [delivery plan](V0_DELIVERY_PLAN.md).
 | Analytical Backpropagation | [CONFLICT] | The free `backward` function traverses `ForwardCache` in reverse and uses the selected loss's output gradient. The module-local composition contract remains open. |
 | Finite-Difference Gradient | [PENDING] | The current source tree has no `num_grad` implementation or full-model finite-difference verification |
 | Optimizer | Implemented | `BGD` and `Adam` update float parameters. The MNIST runner uses Adam while the release baseline specifies BGD |
-| Experiments | Implemented | Built-in OR, XOR, and MNIST factories. The MNIST runner evaluates against training data |
+| Experiments | Implemented | Built-in OR, XOR, and MNIST factories. [Experiment behavior](../EXPERIMENTS.md#selection-and-execution) |
 | Fixed-Point & Ternary Export | Partial | `export_model` writes dense 2-bit ternary codes (`wt.mem`), Q8.24 scales (`w0.mem`), and Q8.24 biases (`bias.mem`). `export_inference` writes inputs and float-derived expected outputs under `npu/data/` |
-| QAT and fixed-point reference | [PENDING] | The MNIST runner exercises QAT. The independent Q8.24 evaluator and the release verification of the STE remain open. |
+| QAT and fixed-point reference | [PENDING] | The library trainer can select QAT. The independent Q8.24 evaluator and release verification of the STE remain open. |
 
 The Rust implementation uses contiguous `Tensor<f32>` storage and matrix multiplication. Analytical backpropagation operates through `ForwardCache`. Quantization maps latent weights to ternary states scaled by layer-wise $W_0$.
 

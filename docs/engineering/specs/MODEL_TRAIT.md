@@ -21,13 +21,11 @@ trace in reverse module order. The trait currently exposes `forward` alone.
 The [delivery plan](../../project/V0_DELIVERY_PLAN.md#4-which-decisions-need-an-explicit-disposition)
 tracks the difference between the current pass and the target composition.
 
-**Construction [CONFLICT]:** At `4961a9e`, a zero output width can bypass
-the initializer's dimension check because the check runs once per output
-row. The inspected working tree adds runtime checks for zero widths in
-`Sequential::new` and `Sequential::linear` before layer allocation.
+**Construction:** `Sequential::new` and `Sequential::linear` reject zero
+widths before layer allocation. These guards were added in `65b1143`.
 Checked allocation sizes and encapsulation of the topology and parameter
 fields remain pending. [Sequential constructor](../../../src/modules/sequential.rs) ·
-[Initializer](../../../src/math/rng_gen.rs)
+[Constructor history](https://github.com/roko-edge/tars/commit/65b1143)
 
 The [training API proposal](../../project/V0_DELIVERY_PLAN.md#351-how-should-the-public-training-path-work-proposed)
 tracks validation and initialization for this constructor.

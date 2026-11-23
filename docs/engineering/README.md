@@ -19,7 +19,7 @@ not establish that a planned capability is available.
 | Review the NPU specialization and generator model | [`NPU_SPECIALIZATION_PROPOSAL.md`](NPU_SPECIALIZATION_PROPOSAL.md) | Proposal, not implemented; v0.1.0 obligations bind the engine steps |
 | Review the assembly layers, engine contract, and test tiers | [`ASSEMBLY_AND_TEST_MODEL.md`](ASSEMBLY_AND_TEST_MODEL.md) | Proposal; records pending decision briefs for the v0.1.0 steps |
 | Review the `start`/`done` protocol and wrapper contract | [`PROTOCOL.md`](PROTOCOL.md) | Engineering contract (normative); owns the engine and wrapper handshake |
-| Review normative and target contracts | [`specs/README.md`](specs/README.md) | Mixed current and target contracts with explicit status |
+| Review normative and target contracts | [`specs/README.md`](specs/README.md) | Specifications with status and implementation deviations |
 
 ---
 

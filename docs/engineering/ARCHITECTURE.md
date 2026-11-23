@@ -19,6 +19,7 @@ release gate. [Artifact reference](MEM_FORMAT.md)
 | `src/modules/` | Dense layers, activations, and the sequential model and forward cache |
 | `src/optim/` | Losses, analytical parameter gradients, BGD, and Adam |
 | `src/data.rs` and `src/experiments/` | Sample and batch data, seeded shuffling, and experiment configuration factories |
+| `src/train.rs` | Reusable float and QAT training loop |
 | `src/quant/` and `src/export.rs` | Ternary scalar quantization and conversion to the Rust–RTL memory files |
 | `src/bin/` | MNIST training runner, dataset reader example, and visualization stub |
 | `npu/src/` and `npu/tests/` | Ternary primitives, layer engine, assembled wrapper, and simulation benches |
@@ -40,10 +41,10 @@ differences are a verification task. [Current public API](../API.md) ·
 
 ## Training executable
 
-`main` calls the MNIST factory and reports progress and accuracy over the
-training data. The experiment guide records the baseline configuration and
-the current QAT experiment. The training command leaves export and
-visualization to their own entry points. [Experiment configurations](../EXPERIMENTS.md#selection-and-execution)
+`main` passes the fit split from the MNIST factory to `Trainer::fit` and
+evaluates the resulting float model and PTQ projection on the reserved suffix.
+Export and visualization have separate entry points.
+[Experiment behavior](../EXPERIMENTS.md#selection-and-execution)
 
 ## Visualization
 

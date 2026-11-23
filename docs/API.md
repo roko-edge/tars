@@ -12,7 +12,7 @@ package. Internal design targets are maintained under
 |---|---|---|
 | `Data` | Stores one input and one target as rank-one `Tensor<f32>` values | Dimensions are not validated by the constructor |
 | `DataMiniBatches` | Shuffles samples and builds rank-two input and target tensors | Requires a positive batch size and a nonempty data set. The current shuffle requires a nonzero effective epoch seed |
-| `Train` | Groups a model, epoch count, learning rate, dataset, and experiment identifier. The working-tree `Train<L: Loss>` also carries the objective | `Trainer::fit` executes training |
+| `Train<L: Loss>` | Groups a model, epoch count, learning rate, dataset, experiment identifier, and objective | `Trainer::fit` executes training |
 | `ExperimentType` | Identifies OR, XOR, MNIST, or a custom configuration | Callers select the factory explicitly |
 | `experiments::or::train()` | Creates the built-in OR configuration | Each linear constructor starts the same fixed seed and initializes biases to zero |
 | `experiments::xor::train()` | Creates the built-in XOR configuration | The main binary does not select it currently |
@@ -27,7 +27,7 @@ See [`EXPERIMENTS.md`](EXPERIMENTS.md) for topologies, datasets, and execution b
 | Resource | Implemented operations | Important constraint |
 |---|---|---|
 | `Module` | Forward evaluation from `&Tensor<f32>` to `Tensor<f32>` | The trait currently exposes `forward` |
-| `Sequential` | `new(input_size, first_output_size)` creates the first dense layer. `new`, `linear`, `relu` and `sigmoid` return `Sequential`. Each appended linear layer infers its input width | Records a training trace through `forward_cache`. Public mutation of `modules` bypasses construction checks. [Committed and working-tree dimension checks](engineering/specs/MODEL_TRAIT.md#specification-model-and-module-interface-hierarchy) |
+| `Sequential` | `new(input_size, first_output_size)` creates the first dense layer. `new`, `linear`, `relu` and `sigmoid` return `Sequential`. Each appended linear layer infers its input width | The builder rejects zero widths. Public mutation of `modules` bypasses construction checks. [Constructor source](../src/modules/sequential.rs) |
 | `Sequential::quantize` | Returns a model with scaled ternary weights represented as `f32`, plus one scale per linear layer | Biases and activations are carried over. Scales follow linear layer order |
 | `Sequential::num_weights`, `Sequential::num_parameters` | Count weights and, for parameters, biases | Activation modules contribute no parameters |
 | `Sequential::sparsity`, `Linear::sparsity` | Report weight sparsity | Apply to projected weights with positive scales in linear layer order. The strict comparison reports zero sparsity for an all-zero layer with a zero scale |
@@ -49,31 +49,16 @@ records the differences in backward composition.
 | `Sequential::forward_cache` | Records the input and each module output as `Tensor<f32>` | The caller owns the cache for the training step |
 | `Loss`, `MSE`, `SoftmaxCE` | Evaluate float objectives and produce an output gradient | SoftmaxCE expects raw logits. See the delivery plan for the forward and gradient discrepancy at extreme logits |
 | `backward` | Walks the flat module list in reverse using a rank-two batch and its `ForwardCache`. Uses the selected loss's output gradient and returns parameter gradients indexed by module | Match the model and cache to the same forward pass |
-| `BGD`, `Adam` | Apply gradient updates to float parameters | Callers must pair compatible model, optimizer state, and gradient structures |
+| `Optimizer`, `BGD`, `Adam` | `Optimizer` exposes `lr()` and `step()`. Both implementations update float parameters | Pair compatible model, optimizer state, and gradients. [Source](../src/optim.rs) |
+| `Trainer::new(model, optimizer, loss)` | Holds a mutable borrow of the model and owns the optimizer and loss | Default mode is float. `with_qat(true)` selects projected weights for forward and backward and updates the latent model |
+| `Trainer::fit` | Trains on the supplied slice, prints metrics, and returns `()` | `batch_size` defaults to 32 and is configurable. Each call starts the shuffle at seed 42. `silent` stores a value while metric printing remains unconditional. [Source](../src/train.rs) |
 
-At `4961a9e`, the executable owns the training loop. The finite-difference
-verification gate and the QAT training step are tracked in the
-[delivery plan](project/V0_DELIVERY_PLAN.md#22-how-do-we-restore-trustworthy-training-pending).
-The [proposed training API](project/V0_DELIVERY_PLAN.md#351-how-should-the-public-training-path-work-proposed)
-describes the public entry point under consideration.
-
-[PENDING] At `7dd519d`, `Trainer::fit` updates the borrowed
-model in float mode by default. QAT selects projected weights for forward
-and backward and updates the latent model. BGD and Adam implement
-`Optimizer::lr()` and `step()`. The loop uses a batch size of 64 and a shuffle
-seed of 42. The batch-size and silent setters remain disconnected from the
-loop, which prints metrics and returns `()`. The executable selects float
-training with Adam and evaluates the float model and its PTQ projection.
-`cargo check --all-targets` succeeds on the inspected source. Training results
-and parity evidence remain pending. [Trainer](../src/train.rs) ·
-[Optimizer trait](../src/optim.rs) · [Executable](../src/bin/main.rs)
-
-[PENDING] The updated trainer uses the configured `batch_size` with a
-default of 32 and logs the effective batch size and QAT mode at startup.
-The epoch loss uses the selected `Loss::forward` on the cached
-predictions before each update and weights the batch means by actual sample
-count. This aggregation covers SoftmaxCE and MSE with a fixed output width.
-`silent` remains disconnected. [Trainer](../src/train.rs)
+The epoch loss weights each pre-update batch's `Loss::forward` by its sample
+count, including the last short batch. This aggregates SoftmaxCE and MSE with
+fixed output width. The executable's preset is documented separately.
+[Experiment behavior](EXPERIMENTS.md#selection-and-execution) ·
+[Verification work](project/V0_DELIVERY_PLAN.md#22-how-do-we-restore-trustworthy-training-pending) ·
+[Proposed training API](project/V0_DELIVERY_PLAN.md#351-how-should-the-public-training-path-work-proposed)
 
 ---
 

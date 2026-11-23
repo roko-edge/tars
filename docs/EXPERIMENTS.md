@@ -2,15 +2,14 @@
 
 **Audience:** Users running the OR, XOR, and MNIST configurations.
 
-Experiment definitions configure a run. At `4961a9e` the executable owns the
-training loop. The latest inspected working tree moves it into `Trainer::fit`.
-[Working-tree training API status](API.md#3-training-operations)
+Experiment factories configure a run. `main` selects MNIST and delegates
+training to `Trainer::fit`. [Training API](API.md#3-training-operations)
 
 ## Module structure
 
 | Source | Responsibility |
 |---|---|
-| [`src/train.rs`](../src/train.rs) | Shared `Train` configuration and working-tree `Trainer::fit` loop |
+| [`src/train.rs`](../src/train.rs) | Shared `Train` configuration and `Trainer::fit` loop |
 | [`src/experiments.rs`](../src/experiments.rs) | Public experiment modules |
 | [`src/experiments/experiment_type.rs`](../src/experiments/experiment_type.rs) | `ExperimentType` identifiers |
 | [`src/experiments/or.rs`](../src/experiments/or.rs) | OR configuration factory |
@@ -18,14 +17,12 @@ training loop. The latest inspected working tree moves it into `Trainer::fit`.
 | [`src/experiments/mnist.rs`](../src/experiments/mnist.rs) | MNIST configuration factory |
 | [`src/bin/main.rs`](../src/bin/main.rs) | Selection, training, and accuracy reporting |
 
-`Train` was moved out of `lib.rs` into `train.rs`. The library declares `pub mod
-train` and re-exports its contents, so callers can use either `tars::Train` or
-`tars::train::Train`. It also exposes the `experiments` module and re-exports its
-public modules.
+The library exposes `Train` through `tars::Train` and `tars::train::Train`.
+Experiment factories are available under `tars::experiments`.
 
 ## Configuration contract
 
-The working-tree `Train<L: Loss>` groups these public fields:
+`Train<L: Loss>` groups these public fields:
 
 | Field | Type | Purpose |
 |---|---|---|
@@ -36,7 +33,7 @@ The working-tree `Train<L: Loss>` groups these public fields:
 | `experiment_type` | `ExperimentType` | Experiment identifier |
 | `loss` | `L` | Training objective passed to `Trainer::new` |
 
-Each working-tree factory returns `Train` parameterized by its loss. MNIST
+Each factory returns `Train` parameterized by its loss. MNIST
 uses `SoftmaxCE`, and OR and XOR use `MSE`. `Sequential::linear` calls
 `Linear::random`, which starts a fixed seeded generator for each layer and
 initializes biases to zero.
@@ -50,11 +47,7 @@ factory supplies the identifier in its configuration.
 |---|---|---:|---:|---|
 | `tars::experiments::or::train()` | `2 -> Linear(1) -> Sigmoid` | 100,000 | 20.0 | `ExperimentType::Or` |
 | `tars::experiments::xor::train()` | `2 -> Linear(4) -> Sigmoid -> Linear(1) -> Sigmoid` | 1,000,000 | 1.0 | `ExperimentType::Xor` |
-| `tars::experiments::mnist::train()` at `e7b7f64` | `784 → 10`, one affine layer | 10 | 0.003 | `ExperimentType::Mnist` |
-| `tars::experiments::mnist::train()` at `4961a9e` | `784 → 128 → 64 → 10`, ReLU after the hidden layers | 5 | 0.001 | `ExperimentType::Mnist` |
-| Earlier MNIST working-tree snapshot on 2026-11-22 | `784 → 64 → 10`, ReLU after the hidden layer | 100 | 0.001 | `ExperimentType::Mnist` |
-| MNIST with `Trainer::fit` at `7dd519d` | `784 → 64 → 10`, ReLU after the hidden layer | 50 | 0.001 | `ExperimentType::Mnist` |
-| Current MNIST experiment | `784 → 64 → 10`, ReLU after the hidden layer | 5 | 0.005 | `ExperimentType::Mnist` |
+| `tars::experiments::mnist::train()` | `784 → 64 → 10`, ReLU after the hidden layer | 5 | 0.005 | `ExperimentType::Mnist` |
 
 The OR and XOR datasets contain the complete two-input truth table.
 
@@ -68,24 +61,14 @@ The OR and XOR datasets contain the complete two-input truth table.
 ## Selection and execution
 
 The executable selects `experiments::mnist::train()` in `src/bin/main.rs`.
-The factory takes images and labels from the MNIST training split and creates
-one-hot targets with ten classes. The baseline at `e7b7f64` uses Adam and
-batches of 512. The QAT experiment at `4961a9e` uses Adam and batches of 32
-with scaled ternary weights represented in `f32`. An earlier working-tree snapshot
-uses float training with Adam and batches of 64, fits the first 50,000 samples
-from the official training split, and evaluates on the remaining training
-samples. The reader exposes the official test split separately.
-[MNIST factory](../src/experiments/mnist.rs) · [Runner](../src/bin/main.rs)
-
-The `Trainer::fit` snapshot at `7dd519d` uses the same split and batch size on
-the assembled `784 → 64 → 10` topology. It trains in float mode with Adam and
-evaluates the final float model and its scaled float PTQ projection on the
-reserved suffix. This is an experimental host workflow. The release comparison
-uses the official test split and the independent integer inference path.
-The updated trainer uses the configured batch size. The executable uses the
-default of 32.
-[Working-tree API status](API.md#3-training-operations) ·
-[Release plan](project/V0_DELIVERY_PLAN.md#23-how-do-we-measure-and-improve-quantized-accuracy-pending)
+The factory uses the official MNIST training split and creates ten-class
+one-hot targets. The runner fits its first 50,000 samples in float mode with
+Adam and the default trainer batch size. It evaluates the resulting float
+model and its scaled float PTQ projection on the remaining training samples.
+The release comparison requires independent test data and fixed-point inference.
+[MNIST factory](../src/experiments/mnist.rs) · [Runner](../src/bin/main.rs) ·
+[Trainer defaults](API.md#3-training-operations) ·
+[Release evaluation](project/V0_DELIVERY_PLAN.md#231-how-do-we-keep-the-final-mnist-evaluation-independent-proposed)
 
 Selection is fixed in the source compiled into the executable. The small-model
 factories supply training data and topology for OR and XOR. Their MSE regression
@@ -97,17 +80,8 @@ The training executable runs from the repository root.
 cargo run --release --locked --bin main
 ```
 
-Each optimization step reads a batch from `DataMiniBatches`, records the forward
-trace, computes analytical parameter gradients, and updates the model. The
-baseline at `e7b7f64` derives synthetic MSE targets from the SoftmaxCE gradient.
-The QAT path at `4961a9e` uses the SoftmaxCE gradient directly and updates
-latent float weights. Those two committed snapshots report argmax accuracy on
-the samples used for training. The earlier working-tree snapshot uses a disjoint
-suffix of the official training split. Release accuracy
-requires a frozen checkpoint and independent test data. Associate each
-report with its exact source, including local configuration overrides.
-[Held-out evaluation protocol](project/V0_DELIVERY_PLAN.md#231-how-do-we-keep-the-final-mnist-evaluation-independent-proposed) ·
-[API reference](API.md#3-training-operations)
+Associate reported results with their exact source revision and configuration.
+[Earlier training snapshots](project/V0_DELIVERY_PLAN.md#1-what-is-the-starting-point)
 
 ## Exports and constraints
 
@@ -157,20 +131,11 @@ the runner snapshot or operator notes. Rounded percentages are insufficient to
 reconstruct exact counts. Use a new run ID for each rerun and keep revisions to
 the record traceable.
 
-[CONFLICT] The `4961a9e` runner and both inspected working-tree snapshots train
-with SoftmaxCE and report an unweighted average of batch MSE on raw logits as
-`Loss (MSE)`. In `4961a9e`, `Ternary PTQ` labels the projected evaluation of a
-QAT checkpoint. In the float working-tree run, it labels PTQ on the float
-checkpoint, evaluated through a scaled `f32` projection. The earlier working-tree
-throughput uses the full dataset length even though fit consumes 50,000
-samples per epoch. `Trainer::fit` uses the length of the fit slice for
-throughput. `Performance degradation` is the accuracy difference in
-percentage points. Record the objective, diagnostic, actual processed count
-and evaluation path independently until the runner reports them directly.
-The updated trainer uses the selected objective for both the loss label and
-the scalar. The epoch mean weights batches by their actual sample counts,
-including the short final batch.
-[Runner](../src/bin/main.rs) · [Trainer](../src/train.rs)
+The current `Performance degradation` field subtracts the PTQ accuracy from
+the float accuracy in percentage points. `Trainer::fit` uses the fit slice
+length for throughput and reports the selected objective as the epoch loss.
+[Runner](../src/bin/main.rs) · [Loss aggregation](API.md#3-training-operations) ·
+[Historical telemetry caveats](project/V0_DELIVERY_PLAN.md#1-what-is-the-starting-point)
 
 ### How can a maintainer capture the current runner today?
 

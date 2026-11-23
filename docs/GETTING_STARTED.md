@@ -46,15 +46,10 @@ cargo run --release --locked --bin main
 ```
 
 `main` selects the MNIST factory in source. It reads the data under
-`mnist-data/` and downloads missing files through the reader. At `4961a9e`,
-the runner prints epoch timing, throughput, loss telemetry, and accuracy on
-the samples used for training. The inspected working tree delegates to
-`Trainer::fit` and evaluates the `784 → 64 → 10` model and its float PTQ projection
-on a reserved suffix of the official training split. The release requires
-independent final test evaluation. OR and XOR are library configuration
-factories.
-[Working-tree training API status](API.md#3-training-operations) ·
-[Held-out evaluation protocol](project/V0_DELIVERY_PLAN.md#231-how-do-we-keep-the-final-mnist-evaluation-independent-proposed)
+`mnist-data/` and downloads missing files through the reader. The runner prints
+training progress, then evaluates the float model and its PTQ projection on a
+reserved suffix of the official training split. OR and XOR are library factories.
+[Experiment behavior](EXPERIMENTS.md#selection-and-execution)
 
 The training command reports results to the terminal. Hardware memory files
 come from explicit calls to the export functions. [Experiment behavior and benchmark capture](EXPERIMENTS.md#selection-and-execution) ·

@@ -53,9 +53,10 @@ cargo run --release --locked --bin main
 cargo test
 ```
 
-`main` reports training progress and evaluates on the MNIST training split.
-Experiment configuration comes from the selected factory. Hardware export and
-visualization are separate from this command. [Training guide](docs/GETTING_STARTED.md#3-run-the-training-binary) ·
+`main` reports training progress and evaluates on a reserved subset of the
+official MNIST training split. Experiment configuration comes from the selected
+factory. Hardware export and visualization have separate entry points.
+[Training guide](docs/GETTING_STARTED.md#3-run-the-training-binary) ·
 [Benchmark records](docs/EXPERIMENTS.md#how-should-benchmark-runs-be-recorded-proposed)
 
 ## SystemVerilog
@@ -82,7 +83,7 @@ See [`docs/README.md`](docs/README.md) for user documentation and navigation by 
 |---|---|
 | [`docs/README.md`](docs/README.md) | User documentation entry point |
 | [`docs/project/V0_CONTRACT.md`](docs/project/V0_CONTRACT.md) | v0.1.0 release target and acceptance criteria |
-| [`docs/project/ROADMAP.md`](docs/project/ROADMAP.md) | Project milestones and ownership |
+| [`docs/project/ROADMAP.md`](docs/project/ROADMAP.md) | Active work and ownership |
 | [`docs/project/STATUS.md`](docs/project/STATUS.md) | Current implementation state and known limitations |
 | [`AGENTS.md`](AGENTS.md) | Repository automation policy for AI tools |
 
