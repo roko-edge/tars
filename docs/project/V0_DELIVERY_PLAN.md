@@ -61,9 +61,7 @@ checkpoint and its PTQ projection on the remaining samples from those files.
 These are source observations. The official test split and release run are
 still [PENDING].
 
-The subsequent trainer integration and revised MNIST configuration are
-recorded in the [public API status](../API.md#3-training-operations) and
-[experiment configurations](../EXPERIMENTS.md#built-in-experiments).
+The subsequent trainer integration is recorded in §1.3.
 
 | Status | Finding |
 | --- | --- |
@@ -73,6 +71,21 @@ recorded in the [public API status](../API.md#3-training-operations) and
 
 [`main.rs`](../../src/bin/main.rs) · [`mnist.rs`](../../src/experiments/mnist.rs) ·
 [`linear.rs`](../../src/modules/linear.rs) · [`math_tests.rs`](../../tests/math_tests.rs)
+
+### 1.3 What changed with the reusable trainer?
+
+| Revision or snapshot | MNIST preset and runner behavior |
+| --- | --- |
+| `e7b7f64` | Single affine `784 → 10`, 10 epochs, learning rate 0.003, Adam with batches of 512. The runner derives synthetic MSE targets from the SoftmaxCE gradient. |
+| `4961a9e` | `784 → 128 → 64 → 10` with hidden ReLUs, 5 epochs, learning rate 0.001, Adam with batches of 32. QAT updates latent float weights. The `Ternary PTQ` label describes the float projection of a QAT checkpoint. |
+| Earlier local inspection on 2026-11-22 | `784 → 64 → 10` with hidden ReLU, 100 epochs, learning rate 0.001. Float training with Adam, batches of 64, and a reserved evaluation suffix. |
+| `7dd519d` | Same topology and split, 50 epochs, learning rate 0.001. `Trainer::fit` hardcodes batches of 64. The earlier API record reports `cargo check --all-targets` succeeded for this snapshot. |
+| `f72bca4` (`origin/main` at review) | Integrates the reusable trainer, effective batch-size configuration, selected-loss reporting, and updated preset. [Current API](../API.md#3-training-operations) · [Current preset](../EXPERIMENTS.md#built-in-experiments) |
+
+The pre-trainer QAT and float snapshots logged MSE on logits while optimizing
+SoftmaxCE. The local snapshot in §1.2 also included evaluation samples in its
+throughput numerator. Interpret old logs against their own source and run inputs.
+[Trainer integration](https://github.com/roko-edge/tars/pull/44)
 
 ---
 
@@ -99,7 +112,7 @@ its threshold to the measured accuracy. [Release contract](V0_CONTRACT.md#1-prim
 | --- | --- | --- |
 | 1 | **Complete RNG ownership.** Extend the existing per-layer stream to the model so initialization advances across layers. Give initialization and shuffling explicit, recorded seeds. Fix the ternary distribution test to exercise the ternary sampler. | The same algorithm and seed reproduce the sequence, successive draws vary, and the initializer produces distinct neuron rows and distinct layers of equal shape on a fixed fixture. The Rust gate passes without retries. Record the locked dependencies and execution environment for byte-level reproducibility. |
 | 2 | **Pin the small-model baseline.** Preserve sigmoid/MSE behavior on OR and XOR. Keep their training commands independent of MNIST downloads and export side effects. | Deterministic fixture for predictions, loss, and a parameter update. Repeated runs reproduce the expected result under the recorded toolchain. |
-| 3 | **Finish the loss boundary.** Register MSE and SoftmaxCE and let the loss produce the initial delta consumed by the analytical backward pass. Define identical shapes, consistent batch reductions, and diagnostics for invalid inputs. | MSE divides by the number of elements. For one-hot targets, batch-mean SoftmaxCE accepts raw logits, uses a stable max-shift/log-sum-exp computation, and returns `(p - y) / B`. Tests cover large logits, the final short batch, mismatched inputs, and finite differences. |
+| 3 | **Finish loss-boundary validation.** The analytical pass already calls `Loss::backward` for the initial delta. Align the SoftmaxCE scalar and gradient at extreme logits, define matching shapes and batch reductions, and diagnose invalid inputs. [Current implementation](../API.md#3-training-operations) | MSE divides by the number of elements. For one-hot targets, batch-mean SoftmaxCE accepts raw logits, uses a stable max-shift/log-sum-exp computation, and returns `(p - y) / B`. Tests cover large logits, the final short batch, mismatched inputs, and finite differences. |
 | 4 | **Verify the model gradient and optimizer.** Use a deterministic multilayer float fixture with ReLU inputs away from zero. Check both weight and bias gradients. Validate the model–gradient pairing before applying BGD updates. | The roadmap sets a finite-difference tolerance of $\epsilon \le 10^{-4}$. Record the perturbation and error metric alongside the result. An invalid gradient is rejected before changing parameters. |
 | 5 | **Finish the MNIST run path.** Use the existing reader, enforce the split roles in Section 2.3.1, and validate image and label counts, dimensions and ranges before pairing. Record the training mode and label the actual loss, split and inference path in the metrics. | The runner records dataset identity, topology, seeds, batch size, learning rate, optimizer, epochs, checkpoint identity, and integer accuracy counts. It can evaluate a saved checkpoint without retraining. Keep exported parity samples identifiable. |
 
@@ -350,7 +363,9 @@ to parameters before stepping.
 | [CONFLICT] | **Quantizer ties and tiny scales.** LOG-008 specifies ties away from zero and the spec separately gives strict comparisons. The implementation uses strict comparisons and a small-scale cutoff. Confirm the exact behavior, including $W_0 = 0$ and positive scales near the cutoff, before freezing release fixtures. | [Quantization specification](../engineering/specs/QUANT.md) and [LOG-008](research/LOG-008-v0_governance_and_release_decisions.md) |
 | [CONFLICT] | **External Q8.24 encoding versus internal rescaling.** The arithmetic document records both a target ties-to-even encoder and current normative truncate-toward-zero serialization. State the selected release encoder separately from the mandatory arithmetic floor inside the epilogue. The release contract specifies a signed 64-bit accumulator and two saturations in the epilogue. | [Q8.24 arithmetic specification](../engineering/specs/ARITHMETIC_Q8_24.md) · [Release contract §2.3](V0_CONTRACT.md#23-respective-npu-hardware-npu) |
 | [DECIDED] | **Program and wrapper scope.** v0.1.0 uses the manually assembled two-layer wrapper. `program.mem` and runtime shape controls belong to the v0.1.1 programmable top. | [Release contract](V0_CONTRACT.md#61-version-boundaries) · [LOG-008](research/LOG-008-v0_governance_and_release_decisions.md) |
-| [CONFLICT] | **Optimizer and statistics.** The older roadmap mentions Adam and a bootstrap interval. The release contract makes BGD the optimizer of record, specifies a 95% binomial interval, and requires the paired comparison for published accuracy claims. | [Release contract](V0_CONTRACT.md) |
+| [PENDING] | **Optimizer baseline.** The current MNIST runner uses Adam. BGD remains the optimizer of record for the release baseline. | [Current runner](../EXPERIMENTS.md#selection-and-execution) · [Release contract](V0_CONTRACT.md#61-version-boundaries) |
+| [CONFLICT] | **Statistics.** The roadmap's responsibility summary mentions a bootstrap interval. The release contract specifies a 95% binomial interval and a paired comparison for published accuracy claims. | [Roadmap](ROADMAP.md#domain-responsibility-summary) · [Release contract](V0_CONTRACT.md#63-research-claim-discipline) |
+| [PENDING] | **Board and export API scope.** The roadmap assigns Urbana timing closure and `model.export_npu` alongside exact parity. Confirm their release scope with the maintainer. The release contract specifies the NPU inference evidence and its artifacts. | [Assignments](ROADMAP.md#what-is-the-current-v010-work) · [Release contract §§2.2–2.3](V0_CONTRACT.md#22-quantization--ternary-engine-srcquant) |
 | [CONFLICT] | **Tensor surface and packed views.** The release contract lists generalized views, broadcasting, axis reductions and mutation capabilities. The implementation is partial and the later decision decouples typed storage from the release path. The tensor spec also names byte-backed T3 storage and byte-aligned views, while the code stores words and uses generic transpose. Record which surface must ship and resolve packing representation and view rules in their specification before extending the API. | [Release contract](V0_CONTRACT.md), [tensor specification](../engineering/specs/TENSOR.md), and [LOG-008](research/LOG-008-v0_governance_and_release_decisions.md) |
 | [CONFLICT] | **Backward composition and loss reduction.** The release contract calls for module-local backward and the model spec describes recursive composition. The training spec declares a composite method consuming an explicit output gradient. The implementation uses a free reverse pass over `Vec<AnyModule>` and takes a loss and targets. The SoftmaxCE formula in the training spec describes one example. State the batch reduction explicitly when reconciling the interface. Preserve the forward trace and a single source of the initial delta. | [Release contract §2.4](V0_CONTRACT.md#24-tensorized-analytical-backpropagation), [model specification](../engineering/specs/MODEL_TRAIT.md), [training specification](../engineering/specs/TRAINING.md) |
 | [PENDING] | **Public capability scope.** Confirm the release disposition of He initialization and the observer interface sketched in Section 2. Distinguish the assembled sequential layer manifest required for v0.1.0 from the DAG manifest in the future-proofing section. Record the supported API in the public reference. | [Release contract §§2, 5 and 6](V0_CONTRACT.md), [public API reference](../API.md) |
@@ -371,7 +386,7 @@ proceed while broader scope decisions are open.
 | Track | First merge-sized change | Next dependency | Completion evidence |
 | --- | --- | --- | --- |
 | Stochasticity, data and evaluation | Fix the seeded stream and its tests. | Freeze split, preprocessing and evaluation settings. | Reproducible data ordering, checkpoint evaluation, and paired metrics. |
-| Training and tensor engine | Finish loss-to-backward integration and MSE regression. | Consume the verified data path and close numerical gradient checks. | Stable float MNIST baseline. Tensor cleanup follows correctness and benchmark fixtures. |
+| Training and tensor engine | Verify the loss-to-backward path and add MSE regressions. | Consume the verified data path and close numerical gradient checks. | Stable float MNIST baseline. Tensor cleanup follows correctness and benchmark fixtures. |
 | Quantization and RTL | Build hand-calculated integer cases and specify the exact comparator behavior. | Agree on quantizer edge cases, derive the shared artifact and connect it to the exact evaluator and testbench. | Small exact fixture first, trained MNIST parity second. |
 | Release integration | Track the open scope decisions and reproduce documented entry points. | Collect final held-out metrics and parity from frozen inputs. | One named candidate revision, complete evidence and a maintainer tag decision. |
 

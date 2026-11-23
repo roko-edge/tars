@@ -87,22 +87,6 @@ The packages are ordered by dependency. A package may start only after the packa
 it depends on are closed. No package may be closed while its acceptance criteria are
 unverified by the test suite.
 
-### 3.1 Milestone Sequencing
-
-The packages are grouped into milestones. A milestone is closed when every package it
-contains is closed and its exit condition is verified. The milestone boundaries are
-advisory for the execution order; the package dependencies remain the normative
-constraint.
-
-| Milestone | Packages | Exit condition |
-|---|---|---|
-| M0 — Foundation | WP-01, WP-02, WP-10, WP-11 | The package compiles without a warning attributable to the tensor module; the type tag occupies one byte; every reachable precondition violation reports a non-empty diagnostic; the public contiguous operation is separated from the internal stride helper |
-| M1 — Geometry and views | WP-03, WP-04, WP-05 | No precondition violation is reported on a valid input; the constructor rejects an insufficient element capacity; the index resolution yields a logical element index; the axis swap and its in-place variant satisfy the contract of Section 4 of the specification |
-| M2 — Memory and kernels | WP-06, WP-07, WP-08 | The re-packed elements of a non-contiguous source preserve the source element order; each kernel reproduces a hand-computed reference on a contiguous and on a non-contiguous operand; the reduction reproduces a hand-computed reference |
-| M3 — Products | WP-09 | Each product reproduces a hand-computed reference; the products reproduce the forward pass of the linear layer element by element, in the orientation recorded in Section 6 of this document |
-| M4 — Access and coverage | WP-12, WP-13 | The bulk access surface is available to the downstream consumers; the test matrix of Section 5 of this document is entirely green, including the failure path of every precondition |
-| M5 — Subsequent phase | WP-14 | Recorded as the subsequent phase of Section 4.2 of the specification; listed here because the work of the current phase constrains its design |
-
 ### WP-01 — Type Tag Normalization
 
 | Field | Content |

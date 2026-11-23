@@ -1,46 +1,27 @@
-# TARS User Documentation
+# TARS Documentation
 
-This directory documents resources that are implemented and available to users of
-the TARS Rust package and SystemVerilog prototype.
-
-Project plans and internal engineering contracts are maintained separately. Their
-presence in this repository does not imply that a feature is available.
+Use this index to find current Rust and NPU behavior, engineering contracts, and
+project plans. The scope of each destination identifies which question it answers.
 
 ---
 
-## Where to Start
+## How does the code work?
 
-Pick the path that matches your role; each is an ordered reading list, not a
-requirement to read everything.
-
-| If you are… | Read in this order |
+| Question | Start here |
 |---|---|
-| New to the project | [`GETTING_STARTED.md`](GETTING_STARTED.md) (environment and commands) → [`../npu/README.md`](../npu/README.md) (what the NPU is) → [`project/STATUS.md`](project/STATUS.md) (where things stand) |
-| Going to touch the RTL | [`../npu/README.md`](../npu/README.md) → [`engineering/ARCHITECTURE.md`](engineering/ARCHITECTURE.md) (glossary and handshake contract) → [`engineering/specs/ARITHMETIC_Q8_24.md`](engineering/specs/ARITHMETIC_Q8_24.md) → [`project/research/LOG-007-v0_execution_mode_phasing.md`](project/research/LOG-007-v0_execution_mode_phasing.md) (decisions and steps) |
-| Going to touch the Rust side or the file formats | [`API.md`](API.md) → [`engineering/specs/TRAINING.md`](engineering/specs/TRAINING.md) (target interfaces) → [`engineering/MEM_FORMAT.md`](engineering/MEM_FORMAT.md) (artifacts) |
+| How do I build and run TARS? | [Getting started](GETTING_STARTED.md) |
+| How do training, batching, and QAT work? | [Implemented Rust API](API.md#3-training-operations) |
+| What do MNIST, OR, and XOR run? | [Experiment configurations](EXPERIMENTS.md#built-in-experiments) |
+| How do I simulate the NPU? | [RTL commands and checks](../npu/README.md#commands) |
+| What crosses the Rust–RTL boundary? | [Memory artifacts](engineering/MEM_FORMAT.md) · [Q8.24 arithmetic](engineering/specs/ARITHMETIC_Q8_24.md) |
+| How does `start`/`done` work? | [Handshake contract](engineering/PROTOCOL.md) |
+| Where is the rest of the engineering reference? | [Architecture and specifications](engineering/README.md) |
+| Can I render a model diagram? | [Visualization status](VISUALIZATION.md) |
 
----
+## What is the project working toward?
 
-## Navigation by Task
-
-| Objective | Document | Scope |
-|---|---|---|
-| Prepare the environment and run TARS | [`GETTING_STARTED.md`](GETTING_STARTED.md) | Requirements, commands, current behavior, and operational limitations |
-| Train MNIST or inspect the OR and XOR factories | [`EXPERIMENTS.md`](EXPERIMENTS.md#built-in-experiments) | Model settings, training flow, and outputs |
-| Record or compare benchmark runs | [`EXPERIMENTS.md`](EXPERIMENTS.md#how-should-benchmark-runs-be-recorded-proposed) | Run capture, metric definitions, and single-thread CPU comparisons |
-| Inspect the current public surface | [`API.md`](API.md) | Implemented modules, operations, and stability boundaries |
-| Check visualization availability | [`VISUALIZATION.md`](VISUALIZATION.md) | Current stub and planned output |
-| Simulate the NPU prototype | [`../npu/README.md`](../npu/README.md) | Hardware environment, Make targets, and current simulation behavior |
-
----
-
-## Other Repository Records
-
-| Area | Entry Point | Purpose |
-|---|---|---|
-| Internal engineering | [`engineering/README.md`](engineering/README.md) | Architecture, implemented decisions, technical contracts, and proposals |
-| Project operations | [`project/README.md`](project/README.md) | Status, roadmap, release targets, and research process |
-
-Internal engineering and project records are not user documentation. A capability is
-considered available only when it is described in this user section and agrees with
-the current source tree.
+| Question | Start here |
+|---|---|
+| What must v0.1.0 verify? | [Release acceptance](project/V0_CONTRACT.md) · [Evidence and conflicts](project/V0_DELIVERY_PLAN.md) |
+| Who owns the work and what is pending? | [Project records](project/README.md) |
+| How are benchmark runs recorded? | [Proposed run protocol](EXPERIMENTS.md#how-should-benchmark-runs-be-recorded-proposed) |
