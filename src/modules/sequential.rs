@@ -2,6 +2,7 @@ use crate::Activation;
 use crate::AnyModule;
 use crate::Linear;
 use crate::Module;
+use crate::data::Data;
 use crate::tensor_core::Tensor;
 
 #[derive(Clone, Debug)]
@@ -89,6 +90,7 @@ impl Sequential {
 
         cache
     }
+
     pub fn num_weights(&self) -> usize {
         self.modules
             .iter()
@@ -98,6 +100,7 @@ impl Sequential {
             })
             .sum()
     }
+
     pub fn num_parameters(&self) -> usize {
         self.modules
             .iter()
@@ -146,6 +149,29 @@ impl Sequential {
         }
 
         (total_zeros as f32 / self.num_weights() as f32, sparsities)
+    }
+
+    // argmax/hardmax algorithm
+    pub fn evaluate_accuracy(&self, dataset: &[Data]) -> f32 {
+        let mut correct = 0;
+
+        for sample in dataset {
+            let pred = self.forward(&sample.input);
+
+            let pred_digit = (0..10)
+                .max_by(|&a, &b| pred.get(&[a]).total_cmp(&pred.get(&[b])))
+                .unwrap();
+
+            let target_digit = (0..10)
+                .max_by(|&a, &b| sample.target.get(&[a]).total_cmp(&sample.target.get(&[b])))
+                .unwrap();
+
+            if pred_digit == target_digit {
+                correct += 1;
+            }
+        }
+
+        (correct as f32 / dataset.len() as f32) * 100.0
     }
 }
 

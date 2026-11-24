@@ -1,5 +1,5 @@
 use std::error::Error;
-use tars::{evaluation::evaluate_accuracy, *};
+use tars::*;
 
 fn main() -> Result<(), Box<dyn Error>> {
     let mut train = experiments::mnist::train();
@@ -10,13 +10,13 @@ fn main() -> Result<(), Box<dyn Error>> {
     trainer.fit(&train.dataset[..50000], train.epochs);
 
     //evaluation
-    let f32_accuracy = evaluate_accuracy(&train.model, &train.dataset[50000..]);
+    let f32_accuracy = train.model.evaluate_accuracy(&train.dataset[50000..]);
     println!("F32 final accuracy: {:.2}%", f32_accuracy,);
 
     let scales;
     (train.model, scales) = train.model.quantize();
 
-    let t3_accuracy = evaluate_accuracy(&train.model, &train.dataset[50000..]);
+    let t3_accuracy = train.model.evaluate_accuracy(&train.dataset[50000..]);
     let (sparsity, _) = train.model.sparsity(&scales);
 
     println!(
