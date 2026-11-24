@@ -25,7 +25,7 @@ pub struct Trainer<'a, L: Loss, O: Optimizer> {
     pub model: &'a mut Sequential,
     pub optimizer: O,
     pub loss_fn: L,
-    with_qat: bool,
+    qat_model: Option<Sequential>,
     silent: bool,
     batch_size: usize,
 }
@@ -36,19 +36,28 @@ impl<'a, L: Loss + Debug, O: Optimizer> Trainer<'a, L, O> {
             model,
             optimizer,
             loss_fn,
-            with_qat: false,
+            qat_model: None,
             silent: false,
             batch_size: 32,
         }
     }
-    pub fn with_qat(&mut self, value: bool) {
-        self.with_qat = value
+    pub fn with_qat(mut self, value: bool) -> Self {
+        if value {
+            if self.qat_model.is_none() {
+                self.qat_model = Some(self.model.zeros_like());
+            }
+        } else {
+            self.qat_model = None;
+        }
+        self
     }
-    pub fn silent(&mut self, value: bool) {
-        self.silent = value
+    pub fn silent(mut self, value: bool) -> Self {
+        self.silent = value;
+        self
     }
-    pub fn batch_size(&mut self, value: usize) {
-        self.batch_size = value
+    pub fn batch_size(mut self, value: usize) -> Self {
+        self.batch_size = value;
+        self
     }
     pub fn fit(&mut self, train_dataset: &[Data], epochs: usize) {
         let mut loader = DataMiniBatches::new(train_dataset, self.batch_size, 42);
@@ -62,23 +71,27 @@ impl<'a, L: Loss + Debug, O: Optimizer> Trainer<'a, L, O> {
             epochs,
             self.optimizer.lr(),
             self.batch_size,
-            if self.with_qat { "Enabled" } else { "Disabled" }
+            if self.qat_model.is_some() {
+                "Enabled"
+            } else {
+                "Disabled"
+            }
         );
         println!(
             "==============================================================================================="
         );
 
+        let mut scales = Vec::new();
         let training_start = Instant::now();
         for i in 1..=epochs {
             let epoch_start = Instant::now();
             let mut epoch_loss_sum = 0.0;
             let mut processed_samples = 0;
-
             for batch in loader.iter_epoch() {
                 let cache;
                 let grad;
-                if self.with_qat {
-                    let (effective_model, _) = self.model.quantize();
+                if let Some(effective_model) = self.qat_model.as_mut() {
+                    self.model.quantize_into(effective_model, &mut scales);
                     cache = effective_model.forward_cache(&batch.input);
                     grad = backward(&effective_model, &cache, &batch.target, &self.loss_fn);
                 } else {

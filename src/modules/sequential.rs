@@ -107,7 +107,20 @@ impl Sequential {
             })
             .sum()
     }
-
+    pub fn zeros_like(&self) -> Self {
+        let modules = self
+            .modules
+            .iter()
+            .map(|m| match m {
+                AnyModule::Linear(l) => AnyModule::Linear(Linear::zeros(l.in_sz, l.out_sz)),
+                AnyModule::Activation(a) => AnyModule::Activation(*a),
+            })
+            .collect();
+        Self {
+            modules,
+            input_size: self.input_size,
+        }
+    }
     pub fn quantize(&self) -> (Sequential, Vec<f32>) {
         let mut out = self.clone();
         let mut scales = Vec::new();
@@ -124,6 +137,24 @@ impl Sequential {
         }
         (out, scales)
     }
+    pub fn quantize_into(&self, other: &mut Sequential, scales: &mut Vec<f32>) {
+        assert_eq!(
+            self.modules.len(),
+            other.modules.len(),
+            "model topology mismatch in quantize_into"
+        );
+        scales.clear();
+        for (m, t_m) in self.modules.iter().zip(other.modules.iter_mut()) {
+            match (m, t_m) {
+                (AnyModule::Linear(l), AnyModule::Linear(t_l)) => {
+                    scales.push(l.quantize_into(t_l));
+                }
+                (AnyModule::Activation(_), AnyModule::Activation(_)) => {}
+                _ => panic!("layer type mismatch in quantize_into"),
+            }
+        }
+    }
+
     pub fn sparsity(&self, scales: &[f32]) -> (f32, Vec<f32>) {
         let mut sparsities = Vec::new();
         let mut total_zeros = 0;
