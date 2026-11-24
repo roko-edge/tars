@@ -41,9 +41,10 @@ differences are a verification task. [Current public API](../API.md) ·
 
 ## Training executable
 
-`main` passes the fit split from the MNIST factory to `Trainer::fit` and
-evaluates the resulting float model and PTQ projection on the reserved suffix.
-Export and visualization have separate entry points.
+`main` passes the fit split from the MNIST factory to `Trainer::fit` with
+`.with_qat(true)`, evaluates the resulting `f32` model and its ternary
+projection on the reserved suffix, and invokes `export_quantized_model` and
+`export_inference`. Visualization has a separate stub entry point.
 [Experiment behavior](../EXPERIMENTS.md#selection-and-execution)
 
 ## Visualization
@@ -126,7 +127,7 @@ weights, scales, biases, and inference data. [Simulation commands](../../npu/REA
 
 ## Integration Boundary
 
-`export_model` writes dense ternary weights and Q8.24 scales and biases.
+`export_quantized_model` writes dense ternary weights and Q8.24 scales and biases.
 `export_inference` writes Q8.24 inputs and float-derived predictions.
 `npu.sv` receives parameters through ports, and elaboration configures the
 layer dimensions. The current Tier 2 comparator allows one LSB. The release

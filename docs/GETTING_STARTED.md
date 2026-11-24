@@ -46,13 +46,13 @@ cargo run --release --locked --bin main
 ```
 
 `main` selects the MNIST factory in source. It reads the data under
-`mnist-data/` and downloads missing files through the reader. The runner prints
-training progress, then evaluates the float model and its PTQ projection on a
-reserved suffix of the official training split. OR and XOR are library factories.
-[Experiment behavior](EXPERIMENTS.md#selection-and-execution)
-
-The training command reports results to the terminal. Hardware memory files
-come from explicit calls to the export functions. [Experiment behavior and benchmark capture](EXPERIMENTS.md#selection-and-execution) ·
+`mnist-data/` and downloads missing files through the reader. The runner fits
+with QAT enabled (`Trainer::with_qat(true)`), prints training progress,
+evaluates the latent `f32` model and its ternary projection on a reserved suffix
+of the official training split, and writes `.mem` artifacts under `npu/data/`
+via `export_quantized_model` and `export_inference`. OR and XOR are library
+factories.
+[Experiment behavior](EXPERIMENTS.md#selection-and-execution) ·
 [Export API](API.md#4-export-and-visualization)
 
 ---
