@@ -218,6 +218,13 @@ impl<T: Element> Tensor<T> {
             None
         }
     }
+    pub fn as_transposed_slice(&self) -> Option<&[T]> {
+        if self.shape.len() == 2 && self.offset == 0 && self.strides == [1, self.shape[0]] {
+            self.storage.as_slice().map(|s| &s[..self.numel()])
+        } else {
+            None
+        }
+    }
 }
 
 // Copy and acess
@@ -434,13 +441,31 @@ where
         assert_eq!(self.shape.len(), 2);
         assert_eq!(other.shape.len(), 1);
         assert_eq!(self.shape[1], other.shape[0]);
-        let mut out = Tensor::zeros(vec![self.shape[0]]);
-        let mut acc;
-        for i in 0..self.shape[0] {
-            acc = T::zero();
-            for j in 0..self.shape[1] {
+
+        let (rows, cols) = (self.shape[0], self.shape[1]);
+        if rows == 0 || cols == 0 {
+            return Tensor::zeros(vec![rows]);
+        }
+
+        if let (Some(a), Some(v)) = (self.as_slice(), other.as_slice()) {
+            let out: Vec<T> = a
+                .chunks_exact(cols)
+                .map(|row| {
+                    row.iter().zip(v).fold(T::zero(), |mut acc, (x, y)| {
+                        acc += x.clone() * y.clone();
+                        acc
+                    })
+                })
+                .collect();
+            return Tensor::from_vec(out, vec![rows]);
+        }
+
+        let mut out = Tensor::zeros(vec![rows]);
+        for i in 0..rows {
+            let acc = (0..cols).fold(T::zero(), |mut acc, j| {
                 acc += self.get(&[i, j]) * other.get(&[j]);
-            }
+                acc
+            });
             out.set(&[i], acc);
         }
         out
