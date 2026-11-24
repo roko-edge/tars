@@ -124,10 +124,12 @@ impl Sequential {
         }
         (out, scales)
     }
+
     pub fn sparsity(&self, scales: &[f32]) -> (f32, Vec<f32>) {
         let mut sparsities = Vec::new();
         let mut total_zeros = 0;
         let mut pos = 0;
+
         for m in &self.modules {
             match m {
                 AnyModule::Linear(l) => {
