@@ -37,6 +37,10 @@ impl ForwardCache {
         self.trace.len()
     }
 
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+
     pub fn with_capacity(capacity: usize) -> Self {
         Self {
             trace: Vec::with_capacity(capacity),

@@ -13,8 +13,10 @@ impl MatMul<Tensor<f32>> for Tensor<f32> {
         assert_eq!(self.shape().len(), 2);
         assert_eq!(other.shape().len(), 2);
         assert_eq!(self.shape()[1], other.shape()[0]);
+
         let mut out = Tensor::zeros(vec![self.shape()[0], other.shape()[1]]);
         let mut acc;
+
         for k in 0..other.shape()[1] {
             for i in 0..self.shape()[0] {
                 acc = 0.0;

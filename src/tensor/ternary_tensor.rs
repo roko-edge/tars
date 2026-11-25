@@ -108,6 +108,10 @@ impl StorageOps<T3> for PackedT3Storage {
         let words = Arc::make_mut(&mut self.words);
         words[word] = (words[word] & !mask) | (value.bits() << shift);
     }
+
+    fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
 }
 
 impl Element for T3 {
