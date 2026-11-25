@@ -252,3 +252,6 @@ fn packed_storage_is_copy_on_write() {
     assert_eq!(a.get(&[0]), T3::Pos);
     assert_eq!(b.get(&[0]), T3::Neg);
 }
+
+#[test]
+fn is_contiguous_test() {}
