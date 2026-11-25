@@ -93,11 +93,10 @@ impl<'a, L: Loss + Debug, O: Optimizer> Trainer<'a, L, O> {
             let mut processed_samples = 0;
             for batch in loader.iter_epoch() {
                 let cache;
-                let grad;
-                if let Some(effective_model) = self.qat_model.as_mut() {
+                let grad = if let Some(effective_model) = self.qat_model.as_mut() {
                     self.model.quantize_into(effective_model, &mut scales);
                     cache = effective_model.forward_cache(&batch.input);
-                    backward(&effective_model, &cache, &batch.target, &self.loss_fn)
+                    backward(effective_model, &cache, &batch.target, &self.loss_fn)
                 } else {
                     cache = self.model.forward_cache(&batch.input);
                     backward(self.model, &cache, &batch.target, &self.loss_fn)
