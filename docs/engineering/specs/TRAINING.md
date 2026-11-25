@@ -5,7 +5,7 @@
 describes the implemented training interface and known deviations.
 The [delivery plan](../../project/V0_DELIVERY_PLAN.md#351-how-should-the-public-training-path-work-proposed)
 tracks proposed refinements to the implemented high-level trainer.
-**Revision date:** 2026-11-02 (maintainer decision).
+**Revision date:** 2026-11-25 (maintainer decision: updated with Section 1.7; Sections 1.1–1.6 frozen 2026-11-02).
 **Owns:** Frozen software training interfaces across model evaluation, loss computation, gradient tracking, optimizer step execution, batch loading, and the wire export boundary.
 **Does not cover:** Mathematical quantization operators ([`QUANT.md`](QUANT.md)), tensor memory strides ([`TENSOR.md`](TENSOR.md)), or hardware-side FSM execution ([`ARITHMETIC_Q8_24.md`](ARITHMETIC_Q8_24.md)).
 
@@ -136,3 +136,18 @@ pub trait Quantizer {
 - Encoders emit canonical `00` for zero.
 - Backward evaluation applies the Straight-Through Estimator (identity pass-through): gradients flow to latent weights `W`, never to `codes`.
 - Full specification in [`QUANT.md`](QUANT.md).
+
+### 1.7 Decision Rules and Accuracy Evaluation `[DECIDED]`
+
+Discrete classification scoring is decoupled from differentiable training objectives (`Loss`, Section 1.2). Because `Hardmax` (`argmax`) is non-differentiable and cannot supply an analytical `Loss::backward` gradient for `Trainer`, `Hardmax` MUST NOT implement `Loss`:
+
+```rust
+pub trait Decision {
+    fn is_correct(&self, pred: &Tensor<f32>, target: &Tensor<f32>) -> bool;
+}
+
+pub struct Hardmax;             // multi-class argmax (e.g., MNIST)
+pub struct Threshold(pub f32);  // single-output binary decision (e.g., OR, XOR)
+```
+
+*Implementation status:* `Sequential::evaluate_accuracy(&self, dataset: &[Data]) -> f32` currently hardcodes a 10-class `argmax` loop. Generalizing it to accept `&impl Decision` (`Hardmax` / `Threshold`) is tracked as `[PENDING]` in [`ROADMAP.md`](../../project/ROADMAP.md#what-is-the-current-v010-work).
