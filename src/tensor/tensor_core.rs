@@ -86,6 +86,7 @@ pub struct Tensor<T: Element> {
 pub trait MatMul<Rhs> {
     type Output;
     fn matmul(&self, rhs: &Rhs) -> Self::Output;
+    fn std_matmul(&self, rhs: &Rhs) -> Self::Output;
 }
 
 // Geometry
