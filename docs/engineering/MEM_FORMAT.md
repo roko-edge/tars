@@ -6,16 +6,21 @@
 
 The exporter writes dense 2-bit ternary weight codes and 32-bit Q8.24 words
 as hexadecimal text under `npu/data/`. The assembled Tier 2 bench reads these
-files through `$readmemh`. The training binary leaves export to explicit
-calls. [Exporter](../../src/export.rs) · [Tier 2 bench](../../npu/tests/tb_parity.sv)
+files through `$readmemh`. Export uses separate calls for model parameters and
+inference samples. [Exporter](../../src/export.rs) · [Tier 2 bench](../../npu/tests/tb_parity.sv)
+
+The MNIST binary calls `export_quantized_model` after `Sequential::quantize`,
+then calls `export_inference` for training-split sample indices `59900..60000`.
+That forward pass uses scaled ternary weights and float arithmetic.
+[MNIST binary](../../src/bin/main.rs) · [Experiment behavior](../EXPERIMENTS.md#exports-and-constraints)
 
 ## Which files does the current exporter write?
 
 | File | Writer | Encoding and order | Consumer |
 | --- | --- | --- | --- |
-| `wt.mem` | `export_model` | One 2-bit code per line, printed as two hex digits. Affine layers in model order, then output row, then input feature. | Tier 2 weight arrays |
-| `w0.mem` | `export_model` | One signed Q8.24 word per supplied scale, printed as eight hex digits. Supply one scale per affine layer in model order. | One scale for each Tier 2 layer |
-| `bias.mem` | `export_model` | One signed Q8.24 word per output neuron, in affine-layer and output order. | Tier 2 bias arrays |
+| `wt.mem` | `export_quantized_model` | One 2-bit code per line, printed as two hex digits. Affine layers in model order, then output row, then input feature. | Tier 2 weight arrays |
+| `w0.mem` | `export_quantized_model` | One signed Q8.24 word per supplied scale, printed as eight hex digits. Supply one scale per affine layer in model order. | One scale for each Tier 2 layer |
+| `bias.mem` | `export_quantized_model` | One signed Q8.24 word per output neuron, printed as eight hex digits. Affine layers in model order, then output neuron order. | Tier 2 bias arrays |
 | `activations.mem` | `export_inference` | Signed Q8.24 inputs in sample order and then feature order. | Tier 2 inputs and legacy smoke inputs |
 | `target.mem` | `export_inference` | Signed Q8.24 words derived from the model's float predictions, in sample order and then output order. | Tier 2 development expectations |
 
@@ -26,8 +31,8 @@ the word bits. The RTL epilogue instead uses an arithmetic right shift when
 rescaling the wide accumulator product. [Quantization encoding](specs/QUANT.md#2-canonical-hardware-code-serialization) ·
 [Q8.24 arithmetic](specs/ARITHMETIC_Q8_24.md)
 
-`export_model` uses the same scalar quantizer as training to select each
-weight's trit. A threshold change can produce different `wt.mem` contents
+`export_quantized_model` uses the same scalar quantizer as `Linear::quantize` to
+select each weight's trit. A threshold change can produce different `wt.mem` contents
 with the same encoding and order. The threshold and tie rules remain
 [CONFLICT] in the [quantization specification](specs/QUANT.md#1-mathematical-formulation).
 
@@ -38,7 +43,9 @@ The legacy `tb.sv` smoke test reads `weights.mem`, `bias.mem` and
 `weights.mem` contains older dense Q8.24 words. The smoke bench's 2-bit
 weight array keeps their low bits and the bench displays results without
 assertions. Treat its input files as a matched set. The two benches share
-the `bias.mem` and `activations.mem` names. [Legacy smoke bench](../../npu/tests/tb.sv)
+the `bias.mem` and `activations.mem` names. The Tier 2 bench for 100 samples
+expects 50,816 weights, 2 scales, 74 biases, 78,400 inputs, and 1,000 expected
+outputs. [Legacy smoke bench](../../npu/tests/tb.sv) · [Tier 2 bench](../../npu/tests/tb_parity.sv)
 
 ## What remains pending for release parity?
 

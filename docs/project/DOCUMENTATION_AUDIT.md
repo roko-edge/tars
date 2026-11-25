@@ -59,12 +59,14 @@ directly in the PR or canonical section with stable source links.
 [Documentation links workflow](../../.github/workflows/docs-links.yml) ·
 [GitHub job summaries](https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-commands#adding-a-job-summary)
 
-When preparing an agent-assisted correction PR, use an `agent/*` working
-branch, recheck the finding against the target revision if `main` advanced,
-and follow the attribution and public-repository checks. The current TARS CI
-excludes `agent/*` from its auto-merge job. The maintainer reviews and merges
-the PR. Keep unresolved evidence gaps in the run report or an existing
-release tracking record as appropriate.
+Use `agent/*` when the agent prepares all or most of the corrections.
+Use `docs/*` for human-led documentation corrections, including when an
+agent reviews them or handles the Git workflow. Recheck the finding against
+the target revision if `main` advanced and follow the attribution and
+public-repository checks. The current TARS CI excludes `agent/*` from its
+auto-merge job. The maintainer reviews and merges those PRs. Keep unresolved
+evidence gaps in the run report or an existing release tracking record as
+appropriate.
 [Repository policy](../../AGENTS.md) · [CI workflow](../../.github/workflows/ci.yml)
 
 ## How does this work with Google AI Pro?

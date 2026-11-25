@@ -61,40 +61,83 @@ impl Linear {
             bias,
         }
     }
-
+    fn w0_from_slice(weights: &[f32]) -> f32 {
+        let sum: f32 = weights.iter().map(|w| w.abs()).sum();
+        if sum > 1e-7 {
+            sum / weights.len() as f32
+        } else {
+            sum
+        }
+    }
     pub fn quantize(&self) -> (Self, f32) {
-        let mut l = self.clone();
-        let mut w0 = 0.0;
-
-        for o in 0..l.out_sz {
-            for w in 0..l.in_sz {
-                w0 += l.weights.get(&[o, w]).abs();
+        let contig;
+        let src_w = match self.weights.as_slice() {
+            Some(s) => s,
+            None => {
+                contig = self.weights.make_contiguous();
+                contig
+                    .as_slice()
+                    .expect("make_contiguous must yield a contiguous slice")
             }
+        };
+        let w0 = Self::w0_from_slice(src_w);
+        let q_weights = src_w
+            .iter()
+            .map(|&w| quantize_scalar(w, w0).as_f32() * w0)
+            .collect();
+        (
+            Self {
+                in_sz: self.in_sz,
+                out_sz: self.out_sz,
+                weights: Tensor::from_vec(q_weights, self.weights.shape().to_vec()),
+                bias: self.bias.clone(),
+            },
+            w0,
+        )
+    }
+    pub fn quantize_into(&self, other: &mut Self) -> f32 {
+        assert_eq!(
+            self.in_sz, other.in_sz,
+            "input size mismatch in quantize_into"
+        );
+        assert_eq!(
+            self.out_sz, other.out_sz,
+            "output size mismatch in quantize_into"
+        );
+
+        if let (Some(src_b), Some(dst_b)) = (self.bias.as_slice(), other.bias.as_mut_slice()) {
+            dst_b.copy_from_slice(src_b);
+        } else {
+            other.bias = self.bias.make_contiguous();
         }
 
-        if w0 > 1e-7 {
-            w0 /= (l.in_sz * l.out_sz) as f32;
+        if let (Some(src_w), Some(dst_w)) = (self.weights.as_slice(), other.weights.as_mut_slice())
+        {
+            let w0 = Self::w0_from_slice(src_w);
+            dst_w
+                .iter_mut()
+                .zip(src_w.iter().map(|&w| quantize_scalar(w, w0).as_f32() * w0))
+                .for_each(|(d, q)| *d = q);
+            w0
+        } else {
+            let (q, w0) = self.quantize();
+            other.weights = q.weights;
+            w0
         }
-
-        for o in 0..l.out_sz {
-            for w in 0..l.in_sz {
-                let trit = quantize_scalar(l.weights.get(&[o, w]), w0);
-                l.weights.set(&[o, w], trit.as_f32() * w0);
-            }
-        }
-        (l, w0)
     }
     pub fn sparsity(&self, w0: f32) -> (usize, f32) {
-        let mut total = 0;
-        let mut zeros = 0;
-        for o in 0..self.out_sz {
-            for w in 0..self.in_sz {
-                total += 1;
-                zeros += (self.weights.get(&[o, w]).abs() < w0) as usize;
+        let contig;
+        let slice = match self.weights.as_slice() {
+            Some(s) => s,
+            None => {
+                contig = self.weights.make_contiguous();
+                contig
+                    .as_slice()
+                    .expect("make_contiguous must yield a contiguous slice")
             }
-        }
-
-        (zeros, zeros as f32 / total as f32)
+        };
+        let zeros = slice.iter().filter(|&&w| w.abs() < w0).count();
+        (zeros, zeros as f32 / slice.len() as f32)
     }
 }
 

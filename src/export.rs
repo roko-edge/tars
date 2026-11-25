@@ -11,7 +11,7 @@ pub fn to_t3(x: f32, w0: f32) -> u8 {
     quantize_scalar(x, w0).bits() as u8
 }
 
-pub fn export_model(model: &Sequential, scales: &[f32]) -> Result<(), Box<dyn Error>> {
+pub fn export_quantized_model(model: &Sequential, scales: &[f32]) -> Result<(), Box<dyn Error>> {
     let mut file_weights = File::create("npu/data/wt.mem")?;
     let mut file_scales = File::create("npu/data/w0.mem")?;
     let mut file_bias = File::create("npu/data/bias.mem")?;
