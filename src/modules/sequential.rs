@@ -77,7 +77,7 @@ impl Sequential {
     }
 
     pub fn sigmoid(mut self) -> Self {
-        //TODO: apply random function in previou:s linear
+        //TODO: apply random function in previous linear
         self.modules
             .push(AnyModule::Activation(Activation::Sigmoid));
         self
@@ -163,19 +163,25 @@ impl Sequential {
     }
 
     pub fn sparsity(&self, scales: &[f32]) -> (f32, Vec<f32>) {
-        let mut sparsities = Vec::new();
+        let mut sparsities = Vec::with_capacity(scales.len());
         let mut total_zeros = 0;
+        let mut total_weights = 0;
         let mut pos = 0;
-
         for m in &self.modules {
             if let AnyModule::Linear(l) = m {
                 let (zeros, s0) = l.sparsity(scales[pos]);
                 total_zeros += zeros;
+                total_weights += l.weights.numel();
                 sparsities.push(s0);
                 pos += 1;
             }
         }
-        (total_zeros as f32 / self.num_weights() as f32, sparsities)
+        let s_total = if total_weights == 0 {
+            0.0
+        } else {
+            total_zeros as f32 / total_weights as f32
+        };
+        (s_total, sparsities)
     }
 
     // argmax/hardmax algorithm

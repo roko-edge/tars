@@ -24,7 +24,7 @@ Both apply a small-scale cutoff. The exporter calls the same scalar quantizer,
 so the new threshold changes which weights are emitted as zero in
 `wt.mem`. The two-bit trit mapping in Section 2 still applies. The release rule
 for the threshold, ties, and small positive scales remains open.
-[Scalar quantizer](../../../src/quant/ternary.rs) · [Exporter](../../../src/export.rs) ·
+[Scalar quantizer](../../../src/quant.rs) · [Exporter](../../../src/export.rs) ·
 [Release disposition](../../project/V0_DELIVERY_PLAN.md#4-which-decisions-need-an-explicit-disposition)
 
 ### 1.1 Scale Factor ($W_0$)

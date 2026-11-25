@@ -61,30 +61,22 @@ impl Linear {
             bias,
         }
     }
-    fn w0_from_slice(weights: &[f32]) -> f32 {
-        let sum: f32 = weights.iter().map(|w| w.abs()).sum();
-        if sum > 1e-7 {
-            sum / weights.len() as f32
-        } else {
-            sum
+    fn with_contiguous_weights<R>(&self, f: impl FnOnce(&[f32]) -> R) -> R {
+        match self.weights.as_slice() {
+            Some(s) => f(s),
+            None => f(self
+                .weights
+                .make_contiguous()
+                .as_slice()
+                .expect("make_contiguous must yield a contiguous slice")),
         }
     }
     pub fn quantize(&self) -> (Self, f32) {
-        let contig;
-        let src_w = match self.weights.as_slice() {
-            Some(s) => s,
-            None => {
-                contig = self.weights.make_contiguous();
-                contig
-                    .as_slice()
-                    .expect("make_contiguous must yield a contiguous slice")
-            }
-        };
-        let w0 = Self::w0_from_slice(src_w);
-        let q_weights = src_w
-            .iter()
-            .map(|&w| quantize_scalar(w, w0).as_f32() * w0)
-            .collect();
+        let (q_weights, w0) = self.with_contiguous_weights(|src_w| {
+            let mut q = vec![0.0; src_w.len()];
+            let w0 = quantize_into_f32(src_w, &mut q);
+            (q, w0)
+        });
         (
             Self {
                 in_sz: self.in_sz,
@@ -113,12 +105,7 @@ impl Linear {
 
         if let (Some(src_w), Some(dst_w)) = (self.weights.as_slice(), other.weights.as_mut_slice())
         {
-            let w0 = Self::w0_from_slice(src_w);
-            dst_w
-                .iter_mut()
-                .zip(src_w.iter().map(|&w| quantize_scalar(w, w0).as_f32() * w0))
-                .for_each(|(d, q)| *d = q);
-            w0
+            quantize_into_f32(src_w, dst_w)
         } else {
             let (q, w0) = self.quantize();
             other.weights = q.weights;
@@ -126,18 +113,10 @@ impl Linear {
         }
     }
     pub fn sparsity(&self, w0: f32) -> (usize, f32) {
-        let contig;
-        let slice = match self.weights.as_slice() {
-            Some(s) => s,
-            None => {
-                contig = self.weights.make_contiguous();
-                contig
-                    .as_slice()
-                    .expect("make_contiguous must yield a contiguous slice")
-            }
-        };
-        let zeros = slice.iter().filter(|&&w| w.abs() < w0).count();
-        (zeros, zeros as f32 / slice.len() as f32)
+        self.with_contiguous_weights(|slice| {
+            let zeros = slice.iter().filter(|w| w.abs() < w0).count();
+            (zeros, zeros as f32 / slice.len() as f32)
+        })
     }
 }
 
