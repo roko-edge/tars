@@ -43,8 +43,13 @@ impl Batch {
             target: Tensor::from_vec(targets.to_vec(), vec![b, out_sz]),
         }
     }
+
     pub fn len(&self) -> usize {
         self.input.shape()[0]
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
     }
 }
 

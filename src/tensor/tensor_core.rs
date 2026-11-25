@@ -18,38 +18,53 @@ pub trait StorageOps<T>: Clone + Debug {
     fn len(&self) -> usize;
     fn get(&self, index: usize) -> T;
     fn set(&mut self, index: usize, value: T);
+
     fn filled(len: usize, value: T) -> Self
     where
         T: Clone,
     {
         Self::from_vec(vec![value; len])
     }
+
     fn as_slice(&self) -> Option<&[T]> {
         None
     }
+
     fn as_mut_slice(&mut self) -> Option<&mut [T]> {
         None
     }
+
+    fn is_empty(&self) -> bool;
 }
+
 // Copy-on-write backend for regular elements such as f32.
 impl<T: Clone + Debug> StorageOps<T> for Arc<Vec<T>> {
     fn from_vec(data: Vec<T>) -> Self {
         Arc::new(data)
     }
+
     fn len(&self) -> usize {
         self.as_ref().len()
     }
+
     fn get(&self, index: usize) -> T {
         self[index].clone()
     }
+
     fn set(&mut self, index: usize, value: T) {
         Arc::make_mut(self)[index] = value;
     }
+
     fn as_slice(&self) -> Option<&[T]> {
         Some(self.as_ref().as_slice())
     }
+
     fn as_mut_slice(&mut self) -> Option<&mut [T]> {
         Some(Arc::make_mut(self).as_mut_slice())
+    }
+
+    fn is_empty(&self) -> bool {
+        self.len() == 0
     }
 }
 
@@ -434,8 +449,10 @@ where
         assert_eq!(self.shape.len(), 2);
         assert_eq!(other.shape.len(), 1);
         assert_eq!(self.shape[1], other.shape[0]);
+
         let mut out = Tensor::zeros(vec![self.shape[0]]);
         let mut acc;
+
         for i in 0..self.shape[0] {
             acc = T::zero();
             for j in 0..self.shape[1] {
