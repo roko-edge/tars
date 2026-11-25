@@ -116,7 +116,7 @@ impl<T: Element> Tensor<T> {
         strides
     }
 
-    pub fn step_logical(shape: &Vec<usize>, v: &mut Vec<usize>) {
+    pub fn step_logical(shape: &[usize], v: &mut [usize]) {
         v[shape.len() - 1] += 1;
 
         let mut i = shape.len() - 1;

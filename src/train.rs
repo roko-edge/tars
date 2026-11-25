@@ -83,16 +83,15 @@ impl<'a, L: Loss + Debug, O: Optimizer> Trainer<'a, L, O> {
 
             for batch in loader.iter_epoch() {
                 let cache;
-                let grad;
 
-                if self.with_qat {
+                let grad = if self.with_qat {
                     let (effective_model, _) = self.model.quantize();
                     cache = effective_model.forward_cache(&batch.input);
-                    grad = backward(&effective_model, &cache, &batch.target, &self.loss_fn);
+                    backward(&effective_model, &cache, &batch.target, &self.loss_fn)
                 } else {
                     cache = self.model.forward_cache(&batch.input);
-                    grad = backward(self.model, &cache, &batch.target, &self.loss_fn);
-                }
+                    backward(self.model, &cache, &batch.target, &self.loss_fn)
+                };
 
                 let batch_loss = self.loss_fn.forward(cache.output(), &batch.target);
                 let batch_samples = batch.len();

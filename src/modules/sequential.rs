@@ -138,20 +138,13 @@ impl Sequential {
         let mut pos = 0;
 
         for m in &self.modules {
-            match m {
-                AnyModule::Linear(l) => {
-                    let zeros;
-                    let s0;
-                    (zeros, s0) = l.sparsity(scales[pos]);
-                    total_zeros += zeros;
-
-                    sparsities.push(s0);
-                    pos += 1;
-                }
-                _ => (),
+            if let AnyModule::Linear(l) = m {
+                let (zeros, s0) = l.sparsity(scales[pos]);
+                total_zeros += zeros;
+                sparsities.push(s0);
+                pos += 1;
             }
         }
-
         (total_zeros as f32 / self.num_weights() as f32, sparsities)
     }
 
