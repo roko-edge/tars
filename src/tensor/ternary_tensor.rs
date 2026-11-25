@@ -70,11 +70,10 @@ impl PackedT3Storage {
 impl StorageOps<T3> for PackedT3Storage {
     fn from_vec(data: Vec<T3>) -> Self {
         let len = data.len();
-
         // Calculates the number of u64 words needed to store 'len' ternary values.
         // Each word holds PER_WORD elements. Round up to allocate an extra word
         // when the elements don't fit exactly into complete words.
-        let word_count = len / Self::PER_WORD + usize::from(len % Self::PER_WORD != 0);
+        let word_count = len / Self::PER_WORD + usize::from(!len.is_multiple_of(Self::PER_WORD));
         let mut words = vec![0_u64; word_count];
 
         for (index, value) in data.into_iter().enumerate() {
@@ -107,6 +106,10 @@ impl StorageOps<T3> for PackedT3Storage {
         let mask = 0b11_u64 << shift;
         let words = Arc::make_mut(&mut self.words);
         words[word] = (words[word] & !mask) | (value.bits() << shift);
+    }
+
+    fn is_empty(&self) -> bool {
+        self.len() == 0
     }
 }
 

@@ -6,6 +6,7 @@ use crate::experiments::experiment_type::ExperimentType;
 use crate::sequential::*;
 use std::fmt::Debug;
 use std::time::Instant;
+
 #[derive(Debug, Clone)]
 pub struct Train<L: Loss> {
     pub model: Sequential,
@@ -59,12 +60,14 @@ impl<'a, L: Loss + Debug, O: Optimizer> Trainer<'a, L, O> {
         self.batch_size = value;
         self
     }
+
     pub fn fit(&mut self, train_dataset: &[Data], epochs: usize) {
         let mut loader = DataMiniBatches::new(train_dataset, self.batch_size, 42);
 
         println!(
             "==============================================================================================="
         );
+
         println!(
             "Samples per Dataset: {} | Epochs: {} | Learning Rate: {} | Batch size: {} | QAT: {}",
             train_dataset.len(),
@@ -77,6 +80,7 @@ impl<'a, L: Loss + Debug, O: Optimizer> Trainer<'a, L, O> {
                 "Disabled"
             }
         );
+
         println!(
             "==============================================================================================="
         );
@@ -93,11 +97,12 @@ impl<'a, L: Loss + Debug, O: Optimizer> Trainer<'a, L, O> {
                 if let Some(effective_model) = self.qat_model.as_mut() {
                     self.model.quantize_into(effective_model, &mut scales);
                     cache = effective_model.forward_cache(&batch.input);
-                    grad = backward(&effective_model, &cache, &batch.target, &self.loss_fn);
+                    backward(&effective_model, &cache, &batch.target, &self.loss_fn)
                 } else {
                     cache = self.model.forward_cache(&batch.input);
-                    grad = backward(self.model, &cache, &batch.target, &self.loss_fn);
-                }
+                    backward(self.model, &cache, &batch.target, &self.loss_fn)
+                };
+
                 let batch_loss = self.loss_fn.forward(cache.output(), &batch.target);
                 let batch_samples = batch.len();
 
@@ -110,23 +115,29 @@ impl<'a, L: Loss + Debug, O: Optimizer> Trainer<'a, L, O> {
             let epoch_duration = epoch_start.elapsed();
             let samples_per_sec = (train_dataset.len() as f64) / epoch_duration.as_secs_f64();
             let avg_loss = epoch_loss_sum / processed_samples as f64;
+
             println!(
                 "Epoch [{:04}/{:04}] - Time: {:>6.2?} | Throughput: {:>8.0} img/s | Loss ({:?}): {:.6}",
                 i, epochs, epoch_duration, samples_per_sec, self.loss_fn, avg_loss
             );
         }
+
         let training_duration = training_start.elapsed();
+
         println!(
             "==============================================================================================="
         );
+
         println!(
             "Training completed in: {:.2?} | Average throughput: {:>8.0} img/s",
             training_duration,
             (train_dataset.len() * epochs) as f64 / training_duration.as_secs_f64()
         );
+
         println!(
             "==============================================================================================="
         );
+
         println!();
     }
 }
