@@ -150,7 +150,7 @@ exercise three different decisions at the same public source baseline.
 | Case | Expected finding | Evidence |
 | --- | --- | --- |
 | Stale API text in the published baseline | The reusable trainer is in the committed source. Its default batch size is 32. Propose the current API wording. | Inspect `git show 495cc9c:docs/API.md`. [Trainer implementation](../../src/train.rs) · [Corrected reference in this working tree](../API.md#3-training-operations) |
-| Quantizer threshold | The current scalar threshold and the documented rules disagree. Preserve the open conflict and cite both. | [Scalar quantizer](../../src/quant/ternary.rs) · [Specification](../engineering/specs/QUANT.md#1-mathematical-formulation) |
+| Quantizer threshold | The current scalar threshold and the documented rules disagree. Preserve the open conflict and cite both. | [Scalar quantizer](../../src/quant.rs) · [Specification](../engineering/specs/QUANT.md#1-mathematical-formulation) |
 | NPU test guidance | `make test` selects Tier 1. Preserve that guidance. Exact Tier 2 parity needs its own evidence and the current comparator allows one LSB. | [Make targets](../../npu/Makefile) · [Test commands](../../npu/README.md#commands) · [Comparator](../../npu/tests/tb_parity.sv) |
 
 Manual source inspection at public commit `495cc9c` confirmed these
