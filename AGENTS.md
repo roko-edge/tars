@@ -55,6 +55,14 @@ normal build outputs. The generated-artifact exclusions in §3 apply.
 | `git config`, credentials, hooks, submodules | ❌ never |
 | anything not listed above | ❌ ask first |
 
+For human-led changes, name the branch for its primary purpose. Use
+`feat/<slug>` for new behavior, `fix/<slug>` for a bug fix, and `refactor/`,
+`docs/`, `test/`, `build/`, or `chore/` as appropriate. Reserve
+`agent/<slug>` for work prepared entirely or predominantly by an agent
+within its permitted scope, such as documentation maintenance. Review,
+testing, or Git automation alone does not make a human-led change an
+`agent/` branch. Record assistance in the commit message per §3.
+
 ## 3. Commit protocol
 
 - **One logical change per commit.** Tests with the code; docs in the same
