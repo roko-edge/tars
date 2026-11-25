@@ -47,7 +47,7 @@ factory supplies the identifier in its configuration.
 |---|---|---:|---:|---|
 | `tars::experiments::or::train()` | `2 -> Linear(1) -> Sigmoid` | 100,000 | 20.0 | `ExperimentType::Or` |
 | `tars::experiments::xor::train()` | `2 -> Linear(4) -> Sigmoid -> Linear(1) -> Sigmoid` | 1,000,000 | 1.0 | `ExperimentType::Xor` |
-| `tars::experiments::mnist::train()` | `784 → 64 → 10`, ReLU after the hidden layer | 5 | 0.005 | `ExperimentType::Mnist` |
+| `tars::experiments::mnist::train()` | `784 → 64 → 10`, ReLU after the hidden layer | 10 | 0.003 | `ExperimentType::Mnist` |
 
 The OR and XOR datasets contain the complete two-input truth table.
 
@@ -62,10 +62,11 @@ The OR and XOR datasets contain the complete two-input truth table.
 
 The executable selects `experiments::mnist::train()` in `src/bin/main.rs`.
 The factory uses the official MNIST training split and creates ten-class
-one-hot targets. The runner fits its first 50,000 samples in float mode with
-Adam and the default trainer batch size. It evaluates the resulting float
-model and its scaled float PTQ projection on the remaining training samples.
-The release comparison requires independent test data and fixed-point inference.
+one-hot targets. The runner fits its first 50,000 samples with QAT enabled
+(`Trainer::with_qat(true)`), Adam, and the default trainer batch size. It
+evaluates the resulting latent `f32` model and its scaled ternary projection on
+the remaining 10,000 training samples. The release comparison requires
+independent test data and fixed-point inference.
 [MNIST factory](../src/experiments/mnist.rs) · [Runner](../src/bin/main.rs) ·
 [Trainer defaults](API.md#3-training-operations) ·
 [Release evaluation](project/V0_DELIVERY_PLAN.md#231-how-do-we-keep-the-final-mnist-evaluation-independent-proposed)
@@ -85,8 +86,10 @@ Associate reported results with their exact source revision and configuration.
 
 ## Exports and constraints
 
-Export is inactive in the normal training run. Explicit export writes the
-artifacts described in the [API reference](API.md#4-export-and-visualization).
+The MNIST runner calls `export_quantized_model` after `Sequential::quantize`
+and `export_inference` on training-split sample indices `59900..60000`,
+evaluating the scaled ternary model in float arithmetic.
+[Memory format](engineering/MEM_FORMAT.md)
 The batch loader requires a nonempty dataset and a positive batch size. Samples
 in a batch must have consistent input and target shapes.
 
