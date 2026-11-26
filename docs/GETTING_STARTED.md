@@ -29,38 +29,39 @@ Without Nix, provide a Rust 2024 toolchain and the corresponding system tools ma
 Run commands from the repository root:
 
 ```bash
-cargo build --lib --bins
-cargo test
+cargo build --lib --examples
+cargo test --all-targets
 ```
 
-The package contains the Rust library, the `main` training binary, the `load_ds`
-MNIST reader example, and the `visualization` stub. The CI workflow builds the
-library and binaries and runs the Rust test suite. [CI workflow](../.github/workflows/ci.yml)
+The package contains the Rust library (`src/lib.rs`) and runnable examples
+under `examples/` (`mnist`, `or`, `xor`), using `mnist_reader` from
+`[dev-dependencies]`. The CI workflow compiles the library, any binary targets,
+and the examples, and runs the Rust test suite. [CI workflow](../.github/workflows/ci.yml)
 
 ---
 
-## 3. Run the Training Binary
+## 3. Run the MNIST Example
 
 ```bash
-cargo run --release --locked --bin main
+cargo run --release --locked --example mnist
 ```
 
-`main` selects the MNIST factory in source. It reads the data under
-`mnist-data/` and downloads missing files through the reader. The runner fits
-with QAT enabled (`Trainer::with_qat(true)`), prints training progress,
-evaluates the latent `f32` model and its ternary projection on a reserved suffix
-of the official training split, and writes `.mem` artifacts under `npu/data/`
-via `export_quantized_model` and `export_inference`. OR and XOR are library
-factories.
+`examples/mnist.rs` reads MNIST data under `mnist-data/` (downloading missing
+files through `mnist_reader`). It trains `784 → 64 → 10` on `train_data` with
+QAT enabled (`Trainer::with_qat(true)`), prints per-epoch progress, evaluates
+the latent `f32` model, scaled ternary projection, sparsity, and model footprint
+on `test_data` via `ModelReport`, and writes `.mem` artifacts under `npu/data/`
+via `export_quantized_model` and `export_inference`. Smaller OR and XOR examples
+run via `cargo run --example or` and `cargo run --example xor`.
 [Experiment behavior](EXPERIMENTS.md#selection-and-execution) ·
 [Export API](API.md#4-export-and-visualization)
 
 ---
 
-## 4. Run the Visualization Binary
+## 4. Network Visualization
 
-The `visualization` binary is a stub. Network diagram generation is tracked
-under [visualization status](VISUALIZATION.md).
+Network diagram generation under `src/view/` is currently outside `src/lib.rs`
+and tracked under [visualization status](VISUALIZATION.md).
 
 ---
 

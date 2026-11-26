@@ -18,10 +18,10 @@ release gate. [Artifact reference](MEM_FORMAT.md)
 | `src/tensor/` | Typed `Tensor<T>`, geometry and views, float kernels, and experimental packed T3 storage |
 | `src/modules/` | Dense layers, activations, and the sequential model and forward cache |
 | `src/optim/` | Losses, analytical parameter gradients, BGD, and Adam |
-| `src/data.rs` and `src/experiments/` | Sample and batch data, seeded shuffling, and experiment configuration factories |
-| `src/train.rs` | Reusable float and QAT training loop |
+| `src/data.rs` | Sample, `DatasetSplit`, batch assembly, and seeded shuffling |
+| `src/train.rs` and `src/report.rs` | Reusable float/QAT training loop (`TrainSummary`) and structured evaluation reporting (`ModelReport`) |
 | `src/quant/` and `src/export.rs` | Ternary scalar quantization and conversion to the Rust–RTL memory files |
-| `src/bin/` | MNIST training runner, dataset reader example, and visualization stub |
+| `examples/` | Standalone runnable examples (`mnist`, `or`, `xor`) consuming the public crate API |
 | `npu/src/` and `npu/tests/` | Ternary primitives, layer engine, assembled wrapper, and simulation benches |
 
 ## Rust model
@@ -39,18 +39,22 @@ indexed by module. BGD and Adam update the model parameters. Full-model finite
 differences are a verification task. [Current public API](../API.md) ·
 [Target training interfaces](specs/TRAINING.md)
 
-## Training executable
+## Runnable examples
 
-`main` passes the fit split from the MNIST factory to `Trainer::fit` with
-`.with_qat(true)`, evaluates the resulting `f32` model and its ternary
-projection on the reserved suffix, and invokes `export_quantized_model` and
-`export_inference`. Visualization has a separate stub entry point.
+Standalone examples under `examples/` exercise the public library API without
+coupling datasets to `src/lib.rs`. [`examples/mnist.rs`](../../examples/mnist.rs)
+trains `784 → 64 → 10` on `train_data` with `Adam` and `.with_qat(true)`,
+evaluates latent `f32` and scaled ternary projections on `test_data` via
+`ModelReport`, and invokes `export_quantized_model` and `export_inference` on
+the first 100 test samples. `examples/or.rs` and `examples/xor.rs` exercise
+BGD/MSE on the two-input logic gates.
 [Experiment behavior](../EXPERIMENTS.md#selection-and-execution)
 
 ## Visualization
 
-The `visualization` binary is a stub. The graph helpers under `src/view/`
-remain outside the public module tree. [Visualization status](../VISUALIZATION.md)
+Graph helpers under `src/view/` remain outside the public module tree, and no
+visualization binary is currently built in `src/bin/`.
+[Visualization status](../VISUALIZATION.md)
 
 ## SystemVerilog Hardware Subsystem
 

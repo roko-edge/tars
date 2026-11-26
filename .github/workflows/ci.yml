@@ -12,8 +12,8 @@ jobs:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
 
-      - name: compile - lib and bins (entry points)
-        run: cargo build --lib --bins
+      - name: compile - lib, bins, and examples
+        run: cargo build --lib --bins --examples
 
       - name: run tests
         run: cargo test

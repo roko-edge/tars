@@ -2,52 +2,37 @@
 
 **Audience:** Users running the OR, XOR, and MNIST configurations.
 
-Experiment factories configure a run. `main` selects MNIST and delegates
-training to `Trainer::fit`. [Training API](API.md#3-training-operations)
+Standalone Cargo examples configure and run the OR, XOR, and MNIST
+experiments directly against the public `tars` library API. [Training API](API.md#3-training-operations)
 
 ## Module structure
 
 | Source | Responsibility |
 |---|---|
-| [`src/train.rs`](../src/train.rs) | Shared `Train` configuration and `Trainer::fit` loop |
-| [`src/experiments.rs`](../src/experiments.rs) | Public experiment modules |
-| [`src/experiments/experiment_type.rs`](../src/experiments/experiment_type.rs) | `ExperimentType` identifiers |
-| [`src/experiments/or.rs`](../src/experiments/or.rs) | OR configuration factory |
-| [`src/experiments/xor.rs`](../src/experiments/xor.rs) | XOR configuration factory |
-| [`src/experiments/mnist.rs`](../src/experiments/mnist.rs) | MNIST configuration factory |
-| [`src/bin/main.rs`](../src/bin/main.rs) | Selection, training, and accuracy reporting |
+| [`src/data.rs`](../src/data.rs) | `Data`, `DatasetSplit`, `Batch`, and `DataMiniBatches` |
+| [`src/train.rs`](../src/train.rs) | `TrainSummary` and reusable `Trainer::fit` loop |
+| [`src/report.rs`](../src/report.rs) | `ModelReport`, `SizeMetrics`, and `QuantizedMetrics` formatter |
+| [`examples/or.rs`](../examples/or.rs) | OR logic gate example (`cargo run --example or`) |
+| [`examples/xor.rs`](../examples/xor.rs) | XOR logic gate example (`cargo run --example xor`) |
+| [`examples/mnist.rs`](../examples/mnist.rs) | MNIST QAT training, reporting, and `.mem` export (`cargo run --release --example mnist`) |
 
-The library exposes `Train` through `tars::Train` and `tars::train::Train`.
-Experiment factories are available under `tars::experiments`.
+Dataset presets and `mnist_reader` live outside `src/lib.rs` (with `mnist_reader`
+declared under `[dev-dependencies]` in `Cargo.toml`) so external library
+consumers do not pull experiment dependencies.
 
-## Configuration contract
+## Built-in examples
 
-`Train<L: Loss>` groups these public fields:
-
-| Field | Type | Purpose |
-|---|---|---|
-| `model` | `Sequential` | Network whose parameters are updated during training |
-| `epochs` | `usize` | Number of passes over the training data |
-| `lr` | `f32` | Learning rate supplied to the optimizer |
-| `dataset` | `Vec<Data>` | Input and target tensors in `f32` |
-| `experiment_type` | `ExperimentType` | Experiment identifier |
-| `loss` | `L` | Training objective passed to `Trainer::new` |
-
-Each factory returns `Train` parameterized by its loss. MNIST
-uses `SoftmaxCE`, and OR and XOR use `MSE`. `Sequential::linear` calls
+Each example constructs a `Sequential` model explicitly, selects an optimizer
+and loss (`SoftmaxCE` for MNIST; `MSE` for OR and XOR), trains via
+`Trainer::fit`, and renders a `ModelReport`. `Sequential::linear` calls
 `Linear::random`, which starts a fixed seeded generator for each layer and
 initializes biases to zero.
 
-`ExperimentType` provides `Or`, `Xor`, `Mnist`, and `Custom` identifiers. Each
-factory supplies the identifier in its configuration.
-
-## Built-in experiments
-
-| Factory | Network | Epochs | Learning rate | Identifier |
-|---|---|---:|---:|---|
-| `tars::experiments::or::train()` | `2 -> Linear(1) -> Sigmoid` | 100,000 | 20.0 | `ExperimentType::Or` |
-| `tars::experiments::xor::train()` | `2 -> Linear(4) -> Sigmoid -> Linear(1) -> Sigmoid` | 1,000,000 | 1.0 | `ExperimentType::Xor` |
-| `tars::experiments::mnist::train()` | `784 → 64 → 10`, ReLU after the hidden layer | 10 | 0.003 | `ExperimentType::Mnist` |
+| Command | Network | Optimizer | Epochs | Learning rate | Batch size | Log interval | QAT |
+|---|---|---|---:|---:|---:|---:|:---:|
+| `cargo run --example or` | `2 -> Linear(1) -> Sigmoid` | `Adam` | 10,000 | 0.2 | 4 | 500 | `false` |
+| `cargo run --example xor` | `2 -> Linear(4) -> Sigmoid -> Linear(1) -> Sigmoid` | `Adam` | 50,000 | 0.01 | 4 | 2,500 | `false` |
+| `cargo run --release --example mnist` | `784 → 64 → 10`, ReLU after the hidden layer | `Adam` | 10 | 0.003 | 32 | 1 | `true` |
 
 The OR and XOR datasets contain the complete two-input truth table.
 
@@ -60,25 +45,27 @@ The OR and XOR datasets contain the complete two-input truth table.
 
 ## Selection and execution
 
-The executable selects `experiments::mnist::train()` in `src/bin/main.rs`.
-The factory uses the official MNIST training split and creates ten-class
-one-hot targets. The runner fits its first 50,000 samples with QAT enabled
-(`Trainer::with_qat(true)`), Adam, and the default trainer batch size. It
-evaluates the resulting latent `f32` model and its scaled ternary projection on
-the remaining 10,000 training samples. The release comparison requires
-independent test data and fixed-point inference.
-[MNIST factory](../src/experiments/mnist.rs) · [Runner](../src/bin/main.rs) ·
+[`examples/mnist.rs`](../examples/mnist.rs) encodes the official MNIST training
+split (`train_data`, 60,000 samples) into `DatasetSplit::train` and the official
+test split (`test_data`, 10,000 samples) into `DatasetSplit::eval` with
+ten-class one-hot targets. It trains with `Adam` (`lr = 0.003`), QAT enabled
+(`Trainer::with_qat(true)`), and batch size `32`, then builds a `ModelReport`
+evaluating latent `f32` accuracy, scaled ternary projection accuracy,
+per-layer/total sparsity, and model memory footprint on `data.eval`. Note that
+while evaluation now uses `test_data`, both accuracies are still evaluated in
+`Tensor<f32>` arithmetic and `Sequential::evaluate_accuracy` currently hardcodes
+10-class `(0..10)` argmax; the release comparison additionally requires the
+bit-exact Q8.24 integer reference and generalizing `evaluate_accuracy` via
+`Decision` (which unblocks accuracy scoring on single-output examples like OR
+and XOR, which currently print truth-table predictions directly).
+[MNIST example](../examples/mnist.rs) ·
 [Trainer defaults](API.md#3-training-operations) ·
 [Release evaluation](project/V0_DELIVERY_PLAN.md#231-how-do-we-keep-the-final-mnist-evaluation-independent-proposed)
 
-Selection is fixed in the source compiled into the executable. The small-model
-factories supply training data and topology for OR and XOR. Their MSE regression
-checks are part of the release verification plan.
-
-The training executable runs from the repository root.
+The training example runs from the repository root:
 
 ```bash
-cargo run --release --locked --bin main
+cargo run --release --locked --example mnist
 ```
 
 Associate reported results with their exact source revision and configuration.
@@ -86,23 +73,21 @@ Associate reported results with their exact source revision and configuration.
 
 ## Exports and constraints
 
-The MNIST runner calls `export_quantized_model` after `Sequential::quantize`
-and `export_inference` on training-split sample indices `59900..60000`,
-evaluating the scaled ternary model in float arithmetic.
-[Memory format](engineering/MEM_FORMAT.md)
+`examples/mnist.rs` calls `export_quantized_model` using the quantized model and
+scales retained in `report.quantized`, then calls `export_inference` on the first
+100 samples of `data.eval` (`test_data`), evaluating the scaled ternary model in
+float arithmetic. [Memory format](engineering/MEM_FORMAT.md)
 The batch loader requires a nonempty dataset and a positive batch size. Samples
 in a batch must have consistent input and target shapes.
 
-## Adding an experiment manually
+## Adding an example manually
 
-A human maintainer can extend the same pattern:
+A maintainer can add another runnable experiment cleanly:
 
-1. Define a module under `src/experiments/` with a `train()` factory returning `Train` parameterized by the chosen loss type.
-2. Supply the configuration fields, including the loss and a matching experiment identifier.
-3. Add the identifier to `ExperimentType` and expose the module in
-   `src/experiments.rs`.
-4. Select the factory in `src/bin/main.rs`, rebuild, and run the executable.
-5. Document the topology, dataset, and hyperparameters alongside this page.
+1. Create a file under `examples/` (using `tars::*` and `[dev-dependencies]` if needed).
+2. Construct `DatasetSplit`, `Sequential`, `Trainer`, and `ModelReport` explicitly.
+3. Run it with `cargo run --example <name>` and verify compilation with `cargo build --lib --bins --examples`.
+4. Document the topology, dataset, and hyperparameters alongside this page.
 
 For the broader module structure, see
 [`engineering/ARCHITECTURE.md`](engineering/ARCHITECTURE.md).
@@ -134,10 +119,11 @@ the runner snapshot or operator notes. Rounded percentages are insufficient to
 reconstruct exact counts. Use a new run ID for each rerun and keep revisions to
 the record traceable.
 
-The current `Performance degradation` field subtracts the PTQ accuracy from
-the float accuracy in percentage points. `Trainer::fit` uses the fit slice
-length for throughput and reports the selected objective as the epoch loss.
-[Runner](../src/bin/main.rs) · [Loss aggregation](API.md#3-training-operations) ·
+The current runner logs can supply terminal diagnostics immediately. Structured epoch
+counters, saved checkpoints, held-out predictions and exact evaluator outputs
+depend on the corresponding runner and evaluator work. Use the proposed CSV
+headers when that data becomes available.
+[MNIST example](../examples/mnist.rs) · [Loss aggregation](API.md#3-training-operations) ·
 [Historical telemetry caveats](project/V0_DELIVERY_PLAN.md#1-what-is-the-starting-point)
 
 ### How can a maintainer capture the current runner today?
@@ -167,19 +153,19 @@ the public repository and reference its run ID from the engineering log.
         lscpu > "$run_dir/cpu.txt"
     fi
     sha256sum Cargo.lock mnist-data/{train-images-idx3,train-labels-idx1,t10k-images-idx3,t10k-labels-idx1}-ubyte.gz > "$run_dir/input-sha256.txt"
-    printf '%s\n' 'cargo run --release --locked --bin main' > "$run_dir/command.txt"
+    printf '%s\n' 'cargo run --release --locked --example mnist' > "$run_dir/command.txt"
     run_exit=0
-    cargo run --release --locked --bin main > "$run_dir/stdout.log" 2> "$run_dir/stderr.log" || run_exit=$?
+    cargo run --release --locked --example mnist > "$run_dir/stdout.log" 2> "$run_dir/stderr.log" || run_exit=$?
     printf '%s\n' "$run_exit" > "$run_dir/exit_status.txt"
     exit "$run_exit"
 )
 ```
 
-The current runner can supply terminal logs immediately. Structured epoch
+The current example can supply terminal logs immediately. Structured epoch
 counters, saved checkpoints, held-out predictions and exact evaluator outputs
-depend on the corresponding runner and evaluator work. Use the proposed CSV
-headers when that data becomes available.
-[Runner](../src/bin/main.rs) · [Delivery plan](project/V0_DELIVERY_PLAN.md)
+depend on the corresponding evaluator work. Use the proposed CSV headers when
+that data becomes available.
+[MNIST example](../examples/mnist.rs) · [Delivery plan](project/V0_DELIVERY_PLAN.md)
 
 ### Which raw records make the metrics reproducible?
 

@@ -6,19 +6,18 @@ package. Internal design targets are maintained under
 
 ---
 
-## 1. Data and Experiment Configuration
+## 1. Data and Example Presets
 
 | Resource | Current role | Important constraint |
 |---|---|---|
 | `Data` | Stores one input and one target as rank-one `Tensor<f32>` values | Dimensions are not validated by the constructor |
+| `DatasetSplit` | Pairs `train: Vec<Data>` and `eval: Vec<Data>` | Defined in `src/data.rs`; separates training and evaluation slices |
 | `DataMiniBatches` | Shuffles samples and builds rank-two input and target tensors | Requires a positive batch size and a nonempty data set. The current shuffle requires a nonzero effective epoch seed |
-| `Train<L: Loss>` | Groups a model, epoch count, learning rate, dataset, experiment identifier, and objective | `Trainer::fit` executes training |
-| `ExperimentType` | Identifies OR, XOR, MNIST, or a custom configuration | Callers select the factory explicitly |
-| `experiments::or::train()` | Creates the built-in OR configuration | Each linear constructor starts the same fixed seed and initializes biases to zero |
-| `experiments::xor::train()` | Creates the built-in XOR configuration | The main binary does not select it currently |
-| `experiments::mnist::train()` | Creates a model and one-hot targets from the MNIST training split | The topology and hyperparameters come from the experiment factory and can change by revision. [Experiment configurations](EXPERIMENTS.md#built-in-experiments) |
 
-See [`EXPERIMENTS.md`](EXPERIMENTS.md) for topologies, datasets, and execution behavior.
+The library crate does not embed built-in dataset presets; runnable OR, XOR, and
+MNIST configurations live in [`examples/`](../examples/mnist.rs) using
+`mnist_reader` from `[dev-dependencies]`. See [`EXPERIMENTS.md`](EXPERIMENTS.md)
+for topologies, datasets, and execution commands.
 
 ---
 
@@ -31,6 +30,7 @@ See [`EXPERIMENTS.md`](EXPERIMENTS.md) for topologies, datasets, and execution b
 | `Sequential::quantize`, `Sequential::quantize_into`, `Sequential::zeros_like` | Project weights to scaled ternary `f32` values (`quantize` allocates a new model; `zeros_like` and `quantize_into` reuse a pre-allocated buffer and `scales` vector) | Biases and activations are carried over. Scales follow linear layer order |
 | `Sequential::num_weights`, `Sequential::num_parameters` | Count weights and, for parameters, biases | Activation modules contribute no parameters |
 | `Sequential::sparsity`, `Linear::sparsity` | Report weight sparsity (`Sequential::sparsity` counts weights in a single pass with zero-division guard) | Apply to projected weights with positive scales in linear layer order. The strict comparison reports zero sparsity for an all-zero layer with a zero scale |
+| `Sequential::evaluate_accuracy` | Evaluates classification accuracy (%) on `&[Data]` in `Tensor<f32>` | Currently hardcodes 10-class `argmax` `(0..10)` (panics on single-output models like OR/XOR); generalizing via `Decision` is tracked in [`ROADMAP.md`](project/ROADMAP.md#what-is-the-current-v010-work) |
 | `absmean`, `quantize_scalar`, `quantize_into_f32` | Ternary absmean scale, scalar `T3` lookup, and slice-level `f32` ternary projection | Defined in [`src/quant.rs`](../src/quant.rs) and shared by `Linear::quantize` and `Linear::quantize_into` |
 | `Linear` | Construction from explicit parameters, zeros, or seeded initialization; slice-based `quantize` and in-place `quantize_into` | The explicit constructor checks weight and bias shapes. Public fields allow unchecked replacements. Forward accepts one sample or a rank-two batch |
 | `Activation` | ReLU and sigmoid evaluation | No additional activation variants are implemented |
@@ -51,8 +51,9 @@ records the differences in backward composition.
 | `Loss`, `MSE`, `SoftmaxCE` | Evaluate float objectives and produce an output gradient | SoftmaxCE expects raw logits. See the delivery plan for the forward and gradient discrepancy at extreme logits |
 | `backward` | Walks the flat module list in reverse using a rank-two batch and its `ForwardCache`. Uses the selected loss's output gradient and returns parameter gradients indexed by module | Match the model and cache to the same forward pass |
 | `Optimizer`, `BGD`, `Adam` | `Optimizer` exposes `lr()` and `step()`. Both implementations update float parameters | Pair compatible model, optimizer state, and gradients. [Source](../src/optim.rs) |
-| `Trainer::new(model, optimizer, loss)` | Holds a mutable borrow of the model and owns the optimizer and loss | Default mode is float. `with_qat`, `silent`, and `batch_size` are fluent builders returning `Self`; `with_qat(true)` allocates a reusable QAT projection buffer once |
-| `Trainer::fit` | Trains on the supplied slice, prints metrics, and returns `()` | Projects weights into the pre-allocated QAT buffer via `quantize_into` when enabled. `batch_size` defaults to 32. Each call starts the shuffle at seed 42. `silent` stores a value while metric printing remains unconditional. [Source](../src/train.rs) |
+| `Trainer::new(model, optimizer, loss)` | Holds a mutable borrow of the model and owns the optimizer and loss | Default mode is float. `with_qat`, `silent`, `batch_size`, and `log_every` are fluent builders returning `Self`; `with_qat(true)` allocates a reusable QAT projection buffer once |
+| `Trainer::fit` | Trains on the supplied slice, prints progress according to `silent`/`log_every`, and returns `TrainSummary` | Projects weights into the pre-allocated QAT buffer via `quantize_into` when enabled. `batch_size` defaults to 32 and `log_every` defaults to 1 (clamped to `>= 1`). Each call starts the shuffle at seed 42; when `silent` is false, prints epoch 1, multiples of `log_every`, and the final epoch with window-level elapsed time and throughput. [Source](../src/train.rs) |
+| `ModelReport`, `SizeMetrics`, `QuantizedMetrics` | Fluent evaluation and footprint report (`with_train`, `with_size`, `with_accuracy`, `with_ternary_accuracy`, `with_sparsity`) with `Display` formatting | Quantizes at most once lazily via `ensure_quantized` when ternary accuracy or sparsity is requested. Accuracy evaluation currently requires `&[Data]` compatible with `Sequential::evaluate_accuracy`. [Source](../src/report.rs) |
 
 The epoch loss weights each pre-update batch's `Loss::forward` by its sample
 count, including the last short batch. This aggregates SoftmaxCE and MSE with
@@ -70,7 +71,7 @@ fixed output width. The executable's preset is documented separately.
 | `to_q8_24` | Converts an `f32` value to the current Q8.24 word representation | Uses truncation rather than round-half-to-even |
 | `export_quantized_model` | Writes dense ternary codes and Q8.24 scales and biases | Accepts scales in linear layer order. The artifacts omit topology and activations. [Memory format](engineering/MEM_FORMAT.md) |
 | `export_inference` | Writes Q8.24 inputs and serialized float predictions | Uses fixed paths under `npu/data/`. The predictions come from float execution |
-| Visualization | [PENDING] The `visualization` binary is a stub and `view` is outside the exported library surface | [Visualization status](VISUALIZATION.md) |
+| Visualization | [PENDING] No `visualization` binary is currently present and `src/view/` sits outside the exported library surface | [Visualization status](VISUALIZATION.md) |
 
 Exact numeric parity is tracked in the [delivery plan](project/V0_DELIVERY_PLAN.md#24-how-do-export-and-rtl-establish-exact-parity-pending).
 
