@@ -23,7 +23,7 @@
 TARS pairs a Rust training library with a dense ternary SystemVerilog inference
 prototype. The library provides typed float tensors, sequential dense models,
 ReLU and sigmoid, analytical backpropagation, MSE and SoftmaxCE, and BGD and
-Adam. The training binary selects MNIST in source.
+Adam. Runnable examples cover MNIST, OR, and XOR.
 
 The explicit exporter writes ternary weight codes and Q8.24 scales, biases,
 and inference data under `npu/data/`. The two-layer RTL wrapper is assembled
@@ -48,15 +48,15 @@ and Verilator for the RTL flow, and GTKWave for waveform inspection.
 ## Rust
 
 ```bash
-cargo build --lib --bins
-cargo run --release --locked --bin main
-cargo test
+cargo build --locked --lib --examples
+cargo run --release --locked --example mnist
+cargo test --locked --all-targets
 ```
 
-`main` reports training progress and evaluates on a reserved subset of the
-official MNIST training split. Experiment configuration comes from the selected
-factory. Hardware export and visualization have separate entry points.
-[Training guide](docs/GETTING_STARTED.md#3-run-the-training-binary) ·
+The MNIST example trains with QAT on the official training split, reports both
+the latent and projected model scores in float arithmetic on the official test
+split, and exports `.mem` files for the assembled prototype.
+[Training guide](docs/GETTING_STARTED.md#3-run-the-mnist-example) ·
 [Benchmark records](docs/EXPERIMENTS.md#how-should-benchmark-runs-be-recorded-proposed)
 
 ## SystemVerilog

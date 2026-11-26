@@ -30,8 +30,8 @@ initializes biases to zero.
 
 | Command | Network | Optimizer | Epochs | Learning rate | Batch size | Log interval | QAT |
 |---|---|---|---:|---:|---:|---:|:---:|
-| `cargo run --example or` | `2 -> Linear(1) -> Sigmoid` | `Adam` | 10,000 | 0.2 | 4 | 500 | `false` |
-| `cargo run --example xor` | `2 -> Linear(4) -> Sigmoid -> Linear(1) -> Sigmoid` | `Adam` | 50,000 | 0.01 | 4 | 2,500 | `false` |
+| `cargo run --example or` | `2 -> Linear(1) -> Sigmoid` | `Adam` | 100 | 3.0 | 4 | 5 | `false` |
+| `cargo run --example xor` | `2 -> Linear(4) -> Sigmoid -> Linear(1) -> Sigmoid` | `Adam` | 10,000 | 1.0 | 4 | 500 | `false` |
 | `cargo run --release --example mnist` | `784 → 64 → 10`, ReLU after the hidden layer | `Adam` | 10 | 0.003 | 32 | 1 | `true` |
 
 The OR and XOR datasets contain the complete two-input truth table.
@@ -77,8 +77,8 @@ Associate reported results with their exact source revision and configuration.
 scales retained in `report.quantized`, then calls `export_inference` on the first
 100 samples of `data.eval` (`test_data`), evaluating the scaled ternary model in
 float arithmetic. [Memory format](engineering/MEM_FORMAT.md)
-The batch loader requires a nonempty dataset and a positive batch size. Samples
-in a batch must have consistent input and target shapes.
+The batch loader requires a nonempty dataset, a positive batch size, and
+rank-one input and target tensors with consistent lengths across samples.
 
 ## Adding an example manually
 

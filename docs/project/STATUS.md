@@ -77,7 +77,7 @@ graph helpers under `src/view/` sit outside the public module tree.
 |---|---|---|
 | `cargo build --lib --examples` | Available | Compiles the Rust library and all runnable examples |
 | `cargo run --release --example mnist` | Available | Trains MNIST with QAT, prints `ModelReport` on `test_data`, and exports `.mem` artifacts |
-| `cargo run --example or` / `xor` | Available | Trains OR/XOR with BGD/MSE and prints `ModelReport` plus truth-table outputs |
+| `cargo run --example or` / `xor` | Available | Trains OR/XOR with `Adam`/`MSE` and prints `ModelReport` plus truth-table outputs |
 | `cargo test` | Available | Runs the Rust unit and integration suites. CI invokes this command. |
 | `make sim` (from `npu/`) | Available | Runs legacy smoke simulation (`tests/tb.sv`, prints results, dumps waveforms to `build/dump.vcd`). Uses `-Wno-fatal` |
 | `make test` / `make all` | Available | Executes Tier 1 testbench `test-core` (`tests/tb_core.sv`) and propagates its exit status |

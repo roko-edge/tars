@@ -126,9 +126,9 @@ Section 5:
 | ② `tb_parity` | Assembled `784 → 64 → 10` wrapper | Current development inputs and float-derived expectations. Release requires the independent Rust integer reference. | [PENDING] Bench and command exist. The comparator allows one LSB and must become an exact word comparison. |
 | ③ `tb_shell` | Programmable top: sequencer, memories, I/O | System-level golden + `program.mem` | Deferred to v0.1.1 (LOG-008) |
 
-The wrapper `npu.sv` is verified by Tier 1 self-checking simulation
-(`tests/tb_core.sv`) asserting deterministic output constants across sequential
-evaluation passes.
+Tier 1 runs one two-layer inference and checks both output words against
+hand-calculated constants. The protocol checks for repeated requests and
+requests while busy are listed in the [protocol contract](../docs/engineering/PROTOCOL.md#test-gates).
 
 ## Current Limitations
 

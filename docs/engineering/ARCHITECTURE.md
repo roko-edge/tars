@@ -47,7 +47,7 @@ trains `784 → 64 → 10` on `train_data` with `Adam` and `.with_qat(true)`,
 evaluates latent `f32` and scaled ternary projections on `test_data` via
 `ModelReport`, and invokes `export_quantized_model` and `export_inference` on
 the first 100 test samples. `examples/or.rs` and `examples/xor.rs` exercise
-BGD/MSE on the two-input logic gates.
+`Adam`/`MSE` on the two-input logic gates.
 [Experiment behavior](../EXPERIMENTS.md#selection-and-execution)
 
 ## Visualization

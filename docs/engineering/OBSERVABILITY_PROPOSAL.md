@@ -14,7 +14,7 @@ HTTP/WebSocket servers, or rendering runtimes. Observability is decoupled throug
 event-driven telemetry interface:
 
 ```text
-Training Loop (src/bin/main.rs)
+Training Loop (src/train.rs)
     │
     ▼
 Observer Trait (src/observe/mod.rs)
