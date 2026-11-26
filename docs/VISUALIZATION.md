@@ -2,10 +2,10 @@
 
 **Status** [PENDING]
 
-The `visualization` binary is a stub. Running it completes without writing
-diagram artifacts. The graph code under `src/view/` is retained in the source
-tree and `lib.rs` currently leaves it outside the public module exports.
-[Visualization binary](../src/bin/visualization.rs) · [Public modules](../src/lib.rs)
+No `visualization` binary is currently present in `src/bin/`. The graph helpers
+under `src/view/` are retained in the source tree and `src/lib.rs` currently
+leaves them outside the public module exports.
+[Public modules](../src/lib.rs)
 
 ## What is planned for the release?
 

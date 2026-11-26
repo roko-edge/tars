@@ -3,7 +3,7 @@
 **Document type:** Project status record. User instructions are maintained in
 [`docs/`](../README.md).
 
-The training and runner entries reflect source inspection on 2026-11-24.
+The training and runner entries reflect source inspection on 2026-11-25.
 The command table describes available entry points.
 The delivery plan ties release evidence to its tested revision.
 [Delivery plan](V0_DELIVERY_PLAN.md) · [Status update workflow](DOCUMENTATION_AUDIT.md#what-should-reach-the-public-main-branch)
@@ -21,7 +21,7 @@ The delivery plan ties release evidence to its tested revision.
 7. Dense ternary weight export (`wt.mem`) and per-layer scales (`w0.mem`) are implemented in `src/export.rs` (PR #30); checked-in legacy `npu/data/` files remain retained for `tb.sv`.
 8. The manual wrapper is the v0.1.0 assembly. The programmable top is scheduled for v0.1.1. [Scope decision](research/LOG-008-v0_governance_and_release_decisions.md#2-maintainer-decisions-november-2026)
 9. Release target: MNIST $784 \to 64 \to 10$ bit-exact against the Rust model, ternary accuracy $> 90\%$; tag v0.1.0.
-10. The MNIST runner trains with QAT enabled, reports `f32` and PTQ accuracy over a reserved subset of the official training split, and exports `.mem` artifacts under `npu/data/`. [Experiment behavior](../EXPERIMENTS.md#selection-and-execution)
+10. The MNIST example (`examples/mnist.rs`) runs with QAT enabled, reports training summary, `f32` and ternary projection accuracy on the official test split, sparsity, and footprint via `ModelReport`, and exports `.mem` artifacts under `npu/data/`. [Experiment behavior](../EXPERIMENTS.md#selection-and-execution)
 
 ---
 
@@ -29,7 +29,7 @@ The delivery plan ties release evidence to its tested revision.
 
 | Component | Status | Implementation Details |
 |---|---|---|
-| Sequential Model | Implemented | `Sequential` stores `Vec<AnyModule>`; implements forward caching, `.quantize()` extracting layer-wise scales $W_0$, and `.zeros_like()` / `.quantize_into()` for buffer-reused QAT |
+| Sequential Model | Implemented | `Sequential` stores `Vec<AnyModule>`; implements forward caching, `.quantize()` extracting layer-wise scales $W_0$, `.zeros_like()` / `.quantize_into()` for buffer-reused QAT, single-pass `.sparsity()`, and 10-class `.evaluate_accuracy()` |
 | Dense Layer | Implemented | `Linear` uses contiguous `Tensor<f32>` weights and `Tensor<f32>` biases (PR #26); implements slice-based `.quantize()` (PR #30), in-place `.quantize_into()`, and `.sparsity()` |
 | Activations | Implemented | ReLU and Sigmoid modules |
 | Tensor Core | Implemented | Typed `Tensor<T>` with strided geometry and copy-on-write storage. The float backend uses `Arc<Vec<f32>>` with slice-optimized `MatMul` and `matvec`. The experimental T3 backend packs 32 trits per `u64` |
@@ -37,7 +37,7 @@ The delivery plan ties release evidence to its tested revision.
 | Analytical Backpropagation | [CONFLICT] | The free `backward` function traverses `ForwardCache` in reverse and uses the selected loss's output gradient. The module-local composition contract remains open. |
 | Finite-Difference Gradient | [PENDING] | The current source tree has no `num_grad` implementation or full-model finite-difference verification |
 | Optimizer | Implemented | `BGD` and `Adam` update float parameters. The MNIST runner uses Adam while the release baseline specifies BGD |
-| Experiments | Implemented | Built-in OR, XOR, and MNIST factories. [Experiment behavior](../EXPERIMENTS.md#selection-and-execution) |
+| Examples & Reporting | Implemented | Standalone examples in `examples/{or, xor, mnist}.rs` use `DatasetSplit`, `Trainer`, and `ModelReport`; `ModelReport` formats training summary, accuracies, sparsity, and footprint. [Experiment behavior](../EXPERIMENTS.md#selection-and-execution) |
 | Fixed-Point & Ternary Export | Partial | `export_quantized_model` writes dense 2-bit ternary codes (`wt.mem`), Q8.24 scales (`w0.mem`), and Q8.24 biases (`bias.mem`). `export_inference` writes inputs and float-derived expected outputs under `npu/data/` |
 | QAT and fixed-point reference | [PENDING] | The library trainer can select QAT. The independent Q8.24 evaluator and release verification of the STE remain open. |
 
@@ -47,8 +47,8 @@ The Rust implementation uses contiguous `Tensor<f32>` storage and matrix multipl
 
 ## Visualization
 
-**[PENDING]** The visualization executable is a stub. The graph helpers
-under `src/view/` sit outside the public module tree.
+**[PENDING]** No `visualization` binary is currently present in `src/bin/`. The
+graph helpers under `src/view/` sit outside the public module tree.
 [Visualization status](../VISUALIZATION.md)
 
 ---
@@ -75,9 +75,9 @@ under `src/view/` sit outside the public module tree.
 
 | Command | Status | Notes |
 |---|---|---|
-| `cargo build` | Available | Compiles the Rust package and binaries |
-| `cargo run --bin main` | Available | The runner selects the MNIST factory and trains with a forward cache and `DataMiniBatches` |
-| `cargo run --bin visualization` | Stub | Completes without generating artifacts |
+| `cargo build --lib --examples` | Available | Compiles the Rust library and all runnable examples |
+| `cargo run --release --example mnist` | Available | Trains MNIST with QAT, prints `ModelReport` on `test_data`, and exports `.mem` artifacts |
+| `cargo run --example or` / `xor` | Available | Trains OR/XOR with BGD/MSE and prints `ModelReport` plus truth-table outputs |
 | `cargo test` | Available | Runs the Rust unit and integration suites. CI invokes this command. |
 | `make sim` (from `npu/`) | Available | Runs legacy smoke simulation (`tests/tb.sv`, prints results, dumps waveforms to `build/dump.vcd`). Uses `-Wno-fatal` |
 | `make test` / `make all` | Available | Executes Tier 1 testbench `test-core` (`tests/tb_core.sv`) and propagates its exit status |

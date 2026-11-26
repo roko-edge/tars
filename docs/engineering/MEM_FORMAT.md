@@ -9,10 +9,10 @@ as hexadecimal text under `npu/data/`. The assembled Tier 2 bench reads these
 files through `$readmemh`. Export uses separate calls for model parameters and
 inference samples. [Exporter](../../src/export.rs) · [Tier 2 bench](../../npu/tests/tb_parity.sv)
 
-The MNIST binary calls `export_quantized_model` after `Sequential::quantize`,
-then calls `export_inference` for training-split sample indices `59900..60000`.
-That forward pass uses scaled ternary weights and float arithmetic.
-[MNIST binary](../../src/bin/main.rs) · [Experiment behavior](../EXPERIMENTS.md#exports-and-constraints)
+The MNIST example calls `export_quantized_model` on the quantized model and
+scales cached in `ModelReport`, then calls `export_inference` for evaluation-split
+sample indices `0..100`. That forward pass uses scaled ternary weights and float
+arithmetic. [MNIST example](../../examples/mnist.rs) · [Experiment behavior](../EXPERIMENTS.md#exports-and-constraints)
 
 ## Which files does the current exporter write?
 
