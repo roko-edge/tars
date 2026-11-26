@@ -88,7 +88,7 @@ surface:
 | `Tensor::get`, `Tensor::set` | Index lookup and mutation over typed storage, including `f32` and `T3` | Mutation detaches the backing buffer if another view shares it |
 | `Tensor::transpose`, `Tensor::transpose_mut` | Swap shape and stride entries while sharing existing element storage | Both axes must lie within the tensor rank |
 | `Tensor::shape`, `Tensor::strides`, `Tensor::offset`, `Tensor::numel`, `Tensor::as_transposed_slice` | Expose geometry and zero-copy transposed 2D slice view. `Element::DTYPE` supplies the one-byte type tag | Shape and strides describe logical coordinates |
-| `Tensor::is_contiguous` | Checks canonical row-major strides and zero offset | The current comparison constructs a stride vector |
+| `Tensor::is_contiguous` | Checks canonical row-major strides and zero offset | Zero-allocation check across `shape` and `strides` in reverse order |
 | `Tensor::make_contiguous` | Re-packs a non-contiguous view into a canonical buffer; shares the storage of an already contiguous source | Carries an identifier distinct from the `contiguous` operation of the specification; no test coverage |
 | `Tensor::add`, `sub`, `mul`, `div` and their in-place variants | Pointwise operations over two tensors, honouring the stride vectors | Shape-mismatch violations are reported through empty diagnostics |
 | `Tensor::mul_scalar`, `div_scalar` and their in-place variants | Pointwise float scalar multiplication and division | Scalar division rejects zero |
