@@ -143,28 +143,6 @@ impl MatMul<Tensor<T3>> for Tensor<f32> {
         }
         out
     }
-
-    fn std_matmul(&self, rhs: &Tensor<T3>) -> Self::Output {
-        let lhs_shape = self.shape();
-        let rhs_shape = rhs.shape();
-        assert_eq!(lhs_shape.len(), 2);
-        assert_eq!(rhs_shape.len(), 2);
-        assert_eq!(lhs_shape[1], rhs_shape[0]);
-
-        let (m, n, p) = (lhs_shape[0], lhs_shape[1], rhs_shape[1]);
-        let mut out = Tensor::<f32>::zeros(vec![m, p]);
-
-        for i in 0..m {
-            for k in 0..p {
-                let mut acc = 0.0_f32;
-                for j in 0..n {
-                    acc += self.get(&[i, j]) * rhs.get(&[j, k]).as_f32();
-                }
-                out.set(&[i, k], acc);
-            }
-        }
-        out
-    }
 }
 
 #[cfg(test)]
