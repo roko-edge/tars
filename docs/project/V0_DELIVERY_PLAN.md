@@ -261,6 +261,19 @@ packing are follow-up experiments when the profile identifies a remaining
 bottleneck. Fusion and scratch reuse should keep the live range of saved
 activations and effective weights explicit.
 
+#### 3.2.1 Which training optimizations belong in v0.1.0? [DECIDED]
+
+**Maintainer decision (2026-11-26):** CPU training throughput is not a v0.1.0 release gate. Only loss correctness and backward-pass cleanup tied to open release conflicts are required for v0.1.0; slice-based data, optimizer, and bias cleanups are optional non-blocking improvements; `MatMul` tiling, multi-threading, and manual SIMD kernels are deferred beyond v0.1.0.
+
+| Scope | Target | Disposition for v0.1.0 | Notes |
+| --- | --- | --- | --- |
+| Required (conflict closure) | `SoftmaxCE` (`src/optim/loss.rs`, `src/train.rs`) | **In scope** | Reconcile `forward` and `backward` via stable log-sum-exp (`[CONFLICT]`). Operating on contiguous slices and avoiding duplicate `softmax` passes belong in the same change. |
+| Required (conflict closure) | `backward` (`src/optim/grad.rs`) | **In scope** | Paired with resolving the free vs. module-local `backward` `[CONFLICT]`. Drop redundant `Tensor::zeros` pre-allocation, use slice reduction for `db`, and skip unused input-gradient `delta.matmul(&linear.weights)` at layer `0`. |
+| Optional (non-blocking) | `DataMiniBatches` / `Batch::from_samples` (`src/data.rs`) | **Optional if time permits** | Gather via `as_slice()` / `extend_from_slice` without per-epoch `Vec<Data>` clones or strided `get` lookups; does not block v0.1.0. |
+| Optional (non-blocking) | `Adam::step` (`src/optim/adam.rs`) | **Optional if time permits** | Iterate `as_slice()` / `as_mut_slice()` instead of per-weight strided `get`/`set`; does not block v0.1.0 (BGD remains baseline optimizer). |
+| Optional (non-blocking) | `Linear::forward` batch bias (`src/modules/linear.rs`) | **Optional if time permits** | Replace per-element `get`/`set` bias addition with row-wise `chunks_exact_mut` slice updates; does not block v0.1.0. |
+| Deferred (post-v0.1.0) | `MatMul` micro-kernels (`src/tensor/float_tensor.rs`) | **Deferred** | No cache tiling, custom SIMD micro-kernels, or multi-threading in v0.1.0; revisit only after cleanups 1–4 if CPU profiling still warrants it (GPU training lands in v0.3.0). |
+
 ### 3.3 What should Roko be able to consume? [PROPOSED]
 
 Use the versioned inference artifact as the integration boundary. The public
@@ -373,6 +386,7 @@ to parameters before stepping.
 | [PENDING] | **Public training entry point.** Fluent `Sequential` construction returns `Self`. Select the initialization seed and shape-preserving parameter access APIs. Confirm the explicit optimizer, one-shot `fit` ownership and compiler entry point before changing public training and deployment signatures. | [Model specification](../engineering/specs/MODEL_TRAIT.md#22-sequential-as-a-composite-module) · [Training API proposal](#351-how-should-the-public-training-path-work-proposed) |
 | [PENDING] | **Visualization.** The active release contract includes subsampled layer layout, activation intensity, and signed weight styling. Deliver that surface using a pinned model and trace, or record a maintainer-approved scope amendment. The graph helpers sit outside the public module tree, with no runnable visualization entry point. | [Release contract §3](V0_CONTRACT.md#3-visualization-and-observability-specifications) · [Current visualization status](../VISUALIZATION.md) |
 | [PROPOSED] | **Artifact fixtures and naming.** Make run metadata and fixture provenance explicit. Document how the expected-output role is distinguished from dataset labels and legacy smoke inputs. Any change to `.mem` names or semantics must move the exporter, RTL consumer, and format docs together. | [Memory format](../engineering/MEM_FORMAT.md) |
+| [DECIDED] | **Training optimization scope.** Release gating covers only `SoftmaxCE` log-sum-exp consistency and `backward` conflict closure; slice cleanups in `data.rs`, `adam.rs`, and `linear.rs` bias are optional non-blocking work; `MatMul` tiling/SIMD/threading is deferred beyond v0.1.0 (2026-11-26). | [Training optimization triage](#321-which-training-optimizations-belong-in-v010-decided) |
 | [PROPOSED] | **Phase boundary.** Keep generalized graph execution, GPU training, int8, and zero-skipping on their documented milestones. Treat Adam, more aggressive kernel tuning, and deployment tooling as candidates justified by evidence and concrete consumers. | [Release boundaries](V0_CONTRACT.md#61-version-boundaries) and [future targets](../engineering/FUTURE_TARGETS.md) |
 
 Record each maintainer disposition in its canonical contract or decision log
