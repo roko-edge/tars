@@ -8,4 +8,6 @@ rand = { version = "0.10.3", features = ["chacha"] }
 petgraph = "0.8"
 yaml-rust2 = "0.13.0"
 num-traits = "0.2.19"
+
+[dev-dependencies]
 mnist_reader = "0.1.3"

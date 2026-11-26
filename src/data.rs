@@ -5,7 +5,11 @@ pub struct Data {
     pub input: Tensor<f32>,
     pub target: Tensor<f32>,
 }
-
+#[derive(Debug, Clone)]
+pub struct DatasetSplit {
+    pub train: Vec<Data>,
+    pub eval: Vec<Data>,
+}
 impl Data {
     pub fn new(input: &[f32], target: &[f32]) -> Self {
         Self {
