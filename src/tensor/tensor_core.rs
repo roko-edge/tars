@@ -152,7 +152,16 @@ impl<T: Element> Tensor<T> {
     }
 
     pub fn is_contiguous(&self) -> bool {
-        self.strides == Self::contiguous_strides(&self.shape) && self.offset == 0
+        self.offset == 0
+            && self
+                .shape
+                .iter()
+                .zip(&self.strides)
+                .rev()
+                .try_fold(1usize, |exp, (&dim, &stride)| {
+                    (stride == exp).then_some(exp * dim)
+                })
+                .is_some()
     }
 
     pub fn strides(&self) -> &[usize] {
