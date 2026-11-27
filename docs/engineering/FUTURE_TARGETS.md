@@ -33,6 +33,16 @@ cubecl directly, or training through burn's module layer over cubecl. The choice
 deferred to the GPU-phase kickoff and recorded there; the invariance rules of
 Section 3 are held so that either path is a bounded addition rather than a redesign.
 
+**Maintainer decision (2026-11-26) [DECIDED]:** Generic training acceleration beyond
+single-CPU v0.1.0 baselines prioritizes **GPU via `cubecl` (`vulkan`)** in `v0.3.0`,
+after closing the `v0.1.0` validation and bit-exact Q8.24 parity gates and the
+`v0.2.0` `no_std + alloc` / zero-skipping inference milestones. **Browser-based
+distributed training over WebAssembly is outside the TARS roadmap:** the
+allocation-only rule in Section 3 preserves `no_std + alloc` portability for
+embedded targets and deterministic CPU evaluation rather than distributed browser
+gradient training. GPU backends are evaluated by end-to-end training wall time and
+parity in held-out accuracy against the CPU reference.
+
 ---
 
 ## 3. Invariance Rules
