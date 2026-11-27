@@ -45,7 +45,11 @@ impl Linear {
 
     pub fn random(in_sz: usize, out_sz: usize) -> Self {
         let mut rng = ChaCha8Rng::seed_from_u64(67);
-        let weights_random = random_mat(&mut rng, in_sz, out_sz);
+        Self::random_with_rng(in_sz, out_sz, &mut rng)
+    }
+
+    pub fn random_with_rng(in_sz: usize, out_sz: usize, rng: &mut ChaCha8Rng) -> Self {
+        let weights_random = random_mat(rng, in_sz, out_sz);
 
         let weights = Tensor::from_vec(
             weights_random.into_iter().flatten().collect(),
@@ -61,6 +65,7 @@ impl Linear {
             bias,
         }
     }
+
     fn with_contiguous_weights<R>(&self, f: impl FnOnce(&[f32]) -> R) -> R {
         match self.weights.as_slice() {
             Some(s) => f(s),

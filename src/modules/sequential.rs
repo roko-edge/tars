@@ -1,3 +1,6 @@
+use rand::SeedableRng;
+use rand::rngs::ChaCha8Rng;
+
 use crate::Activation;
 use crate::AnyModule;
 use crate::Linear;
@@ -5,10 +8,14 @@ use crate::Module;
 use crate::data::Data;
 use crate::tensor_core::Tensor;
 
+pub const DEFAULT_INIT_SEED: u64 = 67;
+
 #[derive(Clone, Debug)]
 pub struct Sequential {
     pub modules: Vec<AnyModule>,
     input_size: usize,
+    init_seed: u64,
+    rng_word_pos: u128,
 }
 
 #[derive(Clone, Debug)]
@@ -50,23 +57,38 @@ impl ForwardCache {
 
 impl Sequential {
     pub fn new(input_size: usize, prox_size: usize) -> Self {
+        Self::with_seed(input_size, prox_size, DEFAULT_INIT_SEED)
+    }
+
+    pub fn with_seed(input_size: usize, prox_size: usize, seed: u64) -> Self {
         assert_ne!(input_size, 0);
         assert_ne!(prox_size, 0);
-        let mut initial_modules = Vec::new();
-        let linear = Linear::random(input_size, prox_size);
-        initial_modules.push(AnyModule::Linear(linear));
+
+        let mut rng = ChaCha8Rng::seed_from_u64(seed);
+        let linear = Linear::random_with_rng(input_size, prox_size, &mut rng);
 
         Self {
-            modules: initial_modules,
+            modules: vec![AnyModule::Linear(linear)],
             input_size: prox_size,
+            init_seed: seed,
+            rng_word_pos: rng.get_word_pos(),
         }
+    }
+
+    pub fn init_seed(&self) -> u64 {
+        self.init_seed
     }
 
     pub fn linear(mut self, output_size: usize) -> Self {
         assert_ne!(output_size, 0);
-        let linear = Linear::random(self.input_size, output_size);
+
+        let mut rng = ChaCha8Rng::seed_from_u64(self.init_seed);
+        rng.set_word_pos(self.rng_word_pos);
+
+        let linear = Linear::random_with_rng(self.input_size, output_size, &mut rng);
         self.modules.push(AnyModule::Linear(linear));
         self.input_size = output_size;
+        self.rng_word_pos = rng.get_word_pos();
         self
     }
 
@@ -114,6 +136,7 @@ impl Sequential {
             })
             .sum()
     }
+
     pub fn zeros_like(&self) -> Self {
         let modules = self
             .modules
@@ -123,14 +146,19 @@ impl Sequential {
                 AnyModule::Activation(a) => AnyModule::Activation(*a),
             })
             .collect();
+
         Self {
             modules,
             input_size: self.input_size,
+            init_seed: self.init_seed,
+            rng_word_pos: self.rng_word_pos,
         }
     }
+
     pub fn quantize(&self) -> (Sequential, Vec<f32>) {
         let mut out = self.clone();
         let mut scales = Vec::new();
+
         for m in &mut out.modules {
             match m {
                 AnyModule::Linear(l) => {
@@ -144,12 +172,14 @@ impl Sequential {
         }
         (out, scales)
     }
+
     pub fn quantize_into(&self, other: &mut Sequential, scales: &mut Vec<f32>) {
         assert_eq!(
             self.modules.len(),
             other.modules.len(),
             "model topology mismatch in quantize_into"
         );
+
         scales.clear();
         for (m, t_m) in self.modules.iter().zip(other.modules.iter_mut()) {
             match (m, t_m) {
@@ -167,6 +197,7 @@ impl Sequential {
         let mut total_zeros = 0;
         let mut total_weights = 0;
         let mut pos = 0;
+
         for m in &self.modules {
             if let AnyModule::Linear(l) = m {
                 let (zeros, s0) = l.sparsity(scales[pos]);
@@ -176,11 +207,13 @@ impl Sequential {
                 pos += 1;
             }
         }
+
         let s_total = if total_weights == 0 {
             0.0
         } else {
             total_zeros as f32 / total_weights as f32
         };
+
         (s_total, sparsities)
     }
 
