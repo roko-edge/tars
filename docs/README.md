@@ -11,7 +11,7 @@ project plans. The scope of each destination identifies which question it answer
 |---|---|
 | How do I build and run TARS? | [Getting started](GETTING_STARTED.md) |
 | How do training, batching, and QAT work? | [Implemented Rust API](API.md#3-training-operations) |
-| What do MNIST, OR, and XOR run? | [Experiment configurations](EXPERIMENTS.md#built-in-experiments) |
+| What do MNIST, OR, and XOR run? | [Experiment configurations](EXPERIMENTS.md#built-in-examples) |
 | How do I simulate the NPU? | [RTL commands and checks](../npu/README.md#commands) |
 | What crosses the Rust–RTL boundary? | [Memory artifacts](engineering/MEM_FORMAT.md) · [Q8.24 arithmetic](engineering/specs/ARITHMETIC_Q8_24.md) |
 | How does `start`/`done` work? | [Handshake contract](engineering/PROTOCOL.md) |
