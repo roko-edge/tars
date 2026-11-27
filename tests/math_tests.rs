@@ -1,3 +1,5 @@
+use std::env::var;
+
 use rand::{SeedableRng, rngs::ChaCha8Rng};
 use tars::rng_gen::*;
 
@@ -24,9 +26,6 @@ fn prng_test() {
 
 #[test]
 fn xavier_test() {
-    use rand::SeedableRng;
-    use rand::rngs::ChaCha8Rng;
-
     let mut rng = ChaCha8Rng::seed_from_u64(67);
 
     let fan_in = 1_000_000;
@@ -59,7 +58,26 @@ fn ternary_distribution_test() {
 
     let mut rng = ChaCha8Rng::seed_from_u64(67);
 
-    let values: Vec<f32> = (0..n).map(|_| prng(&mut rng)).collect();
+    let values: Vec<f32> = (0..n).map(|_| ternary_rng(&mut rng)).collect();
+
+    let scale = (3.0_f32 / 2.0).sqrt();
+
+    let mut neg = 0usize;
+    let mut zero = 0usize;
+    let mut pos = 0usize;
+
+    // counting the frequency of the random generated numbers
+    for &v in &values {
+        if v == -scale {
+            neg += 1;
+        } else if v == 0.0 {
+            zero += 1;
+        } else if v == scale {
+            pos += 1;
+        } else {
+            panic!("unexpected ternary sample: {v}");
+        }
+    }
 
     let mean = values.iter().sum::<f32>() / n as f32;
 
@@ -72,4 +90,11 @@ fn ternary_distribution_test() {
     assert!(mean.abs() < 0.02);
 
     assert!((variance - 1.0).abs() < 0.02);
+
+    let expected_freq = 1.0 / 3.0;
+    for count in [neg, zero, pos] {
+        let freq = count as f64 / n as f64;
+        // the frequency of each value should be proportional
+        assert!((freq - expected_freq).abs() < 0.01);
+    }
 }
