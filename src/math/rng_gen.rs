@@ -39,8 +39,7 @@ pub fn xavier(rng: &mut ChaCha8Rng, fan_in: usize, fan_out: usize) -> Vec<f32> {
 // Basis used rn: (Consider sqrt() as s())
 // {-s(3/2), 0, s(3, 2)}
 
-pub fn ternary_rng() -> f32 {
-    let mut rng = rand::rng();
+pub fn ternary_rng(rng: &mut ChaCha8Rng) -> f32 {
     let u = rng.random_range(0..3);
 
     let scale = (3.0_f32 / 2.0).sqrt();
